@@ -1,38 +1,28 @@
 import streamlit as st
 import pandas as pd
-from database import insert_transactions
+from sqlalchemy import text
+from database import get_engine
 
-st.set_page_config(page_title="Upload Transactions", page_icon="📤")
-st.title("📤 Upload Transactions")
+st.set_page_config(page_title="View Transactions", page_icon="📄")
+st.title("📄 View Transactions")
 
-# Ensure email is present in session state
 email = st.session_state.get("email", "")
 if not email:
-    st.warning("Please enter your email on the Home page before uploading transactions.")
+    st.warning("Please enter your email on the Home page.")
     st.stop()
 
-# Upload section
-uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
+engine = get_engine()
 
-if uploaded_file:
-    try:
-        df = pd.read_csv(uploaded_file)
+try:
+    with engine.connect() as conn:
+        query = text("SELECT date, description, category, amount FROM transactions WHERE user_email = :email")
+        df = pd.read_sql(query, conn, params={"email": email})
 
-        # Basic validation
-        required_cols = {"description", "category", "amount", "date"}
-        if not required_cols.issubset(df.columns):
-            st.error(f"❌ CSV must include columns: {', '.join(required_cols)}")
-        else:
-            # Add user email to each row
-            df["user_email"] = email
+    if df.empty:
+        st.info("No transactions found.")
+    else:
+        st.subheader("Your Transactions")
+        st.dataframe(df)
 
-            # Try inserting
-            insert_transactions(df)
-            st.success("✅ Transactions uploaded successfully!")
-
-            # Preview
-            st.subheader("Uploaded Data Preview")
-            st.dataframe(df)
-
-    except Exception as e:
-        st.error(f"❌ Failed to upload transactions: {e}")
+except Exception as e:
+    st.error(f"❌ Error retrieving transactions: {e}")
