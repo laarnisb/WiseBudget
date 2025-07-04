@@ -1,23 +1,27 @@
+# pages/1_Register_Users.py
+
 import streamlit as st
 from database import insert_user
 from datetime import datetime
 
 st.set_page_config(page_title="Register", page_icon="📝")
-st.title("📝 Register User")
+st.title("📝 Register New User")
 
-st.write("Please enter your name and email to register.")
+# Use the email from session state
+if "email" not in st.session_state:
+    st.session_state.email = ""
 
-with st.form("register_form"):
-    name = st.text_input("Full Name")
-    email = st.text_input("Email")
-    submitted = st.form_submit_button("Register")
+name = st.text_input("Full Name")
+email = st.text_input("Email", value=st.session_state.email)
+register = st.button("Register")
 
-    if submitted:
-        if not name or not email:
-            st.warning("⚠️ Please enter both name and email.")
-        else:
-            try:
-                insert_user(name, email, datetime.utcnow())
-                st.success(f"✅ {name} has been registered successfully!")
-            except ValueError as ve:
-                st.error(str(ve))
+if register:
+    if not name or not email:
+        st.warning("⚠️ Please enter both name and email.")
+    else:
+        try:
+            insert_user(name, email, datetime.now())
+            st.success("✅ User registered successfully!")
+            st.session_state.email = email  # Update session email after registration
+        except ValueError as e:
+            st.error(str(e))

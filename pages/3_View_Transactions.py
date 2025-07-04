@@ -1,42 +1,38 @@
 import streamlit as st
 import pandas as pd
-from sqlalchemy import text
-from database import get_engine
+from database import insert_transactions
 
-st.set_page_config(page_title="View Transactions", page_icon="📋")
-st.title("📋 View Transactions")
+st.set_page_config(page_title="Upload Transactions", page_icon="📤")
+st.title("📤 Upload Transactions")
 
-st.write("Enter your registered email to view your uploaded transactions.")
+# Ensure email is present in session state
+email = st.session_state.get("email", "")
+if not email:
+    st.warning("Please enter your email on the Home page before uploading transactions.")
+    st.stop()
 
-email = st.text_input("Email")
+# Upload section
+uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
 
-if email:
+if uploaded_file:
     try:
-        engine = get_engine()
-        with engine.connect() as conn:
-            # Step 1: Fetch user_id
-            user_query = text("SELECT id FROM users WHERE email = :email")
-            user_result = conn.execute(user_query, {"email": email}).fetchone()
+        df = pd.read_csv(uploaded_file)
 
-            if user_result:
-                user_id = user_result[0]
+        # Basic validation
+        required_cols = {"description", "category", "amount", "date"}
+        if not required_cols.issubset(df.columns):
+            st.error(f"❌ CSV must include columns: {', '.join(required_cols)}")
+        else:
+            # Add user email to each row
+            df["user_email"] = email
 
-                # Step 2: Fetch transactions
-                txn_query = text("""
-                    SELECT amount, category, description, date
-                    FROM transactions
-                    WHERE user_id = :user_id
-                    ORDER BY date DESC
-                """)
-                df = pd.read_sql(txn_query, conn, params={"user_id": user_id})
+            # Try inserting
+            insert_transactions(df)
+            st.success("✅ Transactions uploaded successfully!")
 
-                if df.empty:
-                    st.info("ℹ️ No transactions found for this user.")
-                else:
-                    st.subheader("🧾 Your Transactions")
-                    st.dataframe(df)
+            # Preview
+            st.subheader("Uploaded Data Preview")
+            st.dataframe(df)
 
-            else:
-                st.warning("⚠️ No user found with that email.")
     except Exception as e:
-        st.error(f"❌ Error loading transactions: {e}")
+        st.error(f"❌ Failed to upload transactions: {e}")

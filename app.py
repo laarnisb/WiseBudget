@@ -1,15 +1,17 @@
 import streamlit as st
 from database import get_engine
 
-# Optional: import authenticator if you plan to add login
-# import streamlit_authenticator as stauth
-# import yaml
-
 # Page configuration
 st.set_page_config(page_title="WiseBudget", layout="wide")
 
 # App title and description
 st.title("💸 Welcome to WiseBudget")
+
+# Session-based email capture
+if "email" not in st.session_state:
+    st.session_state.email = ""
+
+st.session_state.email = st.text_input("📧 Enter your registered email", value=st.session_state.email)
 
 st.markdown("""
 WiseBudget is your personal finance dashboard designed to help you:
