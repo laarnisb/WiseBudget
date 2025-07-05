@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import datetime
 from database import insert_transactions
-from utils import get_logged_in_user_email
+from auth import get_logged_in_user_email
 
 st.title("📤 Upload Transactions")
 
