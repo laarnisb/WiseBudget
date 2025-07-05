@@ -33,6 +33,7 @@ def insert_transactions(df: pd.DataFrame):
     """Insert multiple transactions into the transactions table."""
     with engine.connect() as conn:
         for _, row in df.iterrows():
+            # Get the user_id from users table using user_email
             result = conn.execute(
                 text("SELECT id FROM users WHERE email = :email"),
                 {"email": row["user_email"]}
@@ -44,14 +45,14 @@ def insert_transactions(df: pd.DataFrame):
 
             user_id = user_row[0]
 
+            # Insert the transaction
             conn.execute(
                 text("""
-                    INSERT INTO transactions (user_id, user_email, amount, category, description, date)
-                    VALUES (:user_id, :user_email, :amount, :category, :description, :date)
+                    INSERT INTO transactions (user_id, amount, category, description, date)
+                    VALUES (:user_id, :amount, :category, :description, :date)
                 """),
                 {
                     "user_id": user_id,
-                    "user_email": row["user_email"],
                     "amount": row["amount"],
                     "category": row["category"],
                     "description": row["description"],
