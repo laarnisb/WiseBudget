@@ -1,46 +1,63 @@
 import streamlit as st
 import pandas as pd
-from database import get_connection, get_user_id
+import plotly.express as px
+import io
+from sqlalchemy import text
+from database import get_engine
 
-st.set_page_config(page_title="Budget Summary Reports", page_icon="🧾")
-st.title("🧾 Budget Summary Reports")
+st.set_page_config(page_title="Budget Summary Reports", page_icon="📑")
+st.title("📑 Budget Summary Reports")
 
-email = st.session_state.get("user_email", None)
-if email is None:
-    st.warning("Please log in or set an email to continue.")
-    st.stop()
+email = st.session_state.get("email", "")
 
-user_id = get_user_id(email)
-if user_id is None:
-    st.warning("User not found.")
-    st.stop()
+if email:
+    try:
+        engine = get_engine()
+        with engine.connect() as conn:
+            user_query = text("SELECT id FROM users WHERE email = :email")
+            user_result = conn.execute(user_query, {"email": email}).fetchone()
 
-conn = get_connection()
-cursor = conn.cursor()
+            if user_result:
+                user_id = user_result[0]
 
-try:
-    cursor.execute("""
-        SELECT category, SUM(amount)
-        FROM transactions
-        WHERE user_id = %s
-        GROUP BY category
-    """, (user_id,))
-    data = cursor.fetchall()
-    if not data:
-        st.warning("No transactions found for report.")
-        st.stop()
+                txn_query = text("SELECT category, amount FROM transactions WHERE user_id = :user_id")
+                txn_df = pd.read_sql(txn_query, conn, params={"user_id": user_id})
 
-    df = pd.DataFrame(data, columns=["Category", "Total Spent"])
-    st.dataframe(df, use_container_width=True)
+                if not txn_df.empty:
+                    category_mapping = {
+                        "groceries": "Needs", "rent": "Needs", "utilities": "Needs", "transport": "Needs",
+                        "insurance": "Needs", "healthcare": "Needs", "internet": "Needs",
+                        "dining": "Wants", "entertainment": "Wants", "travel": "Wants", "shopping": "Wants",
+                        "subscriptions": "Wants", "savings": "Savings", "investment": "Savings",
+                        "emergency fund": "Savings", "retirement": "Savings"
+                    }
+                    txn_df["Group"] = txn_df["category"].map(category_mapping).fillna("Other")
+                    summary_df = txn_df.groupby("Group")["amount"].sum().reset_index()
+                    summary_df.columns = ["Category Group", "Total Spending"]
 
-    st.subheader("Spending Distribution")
-    st.plotly_chart(
-        pd.DataFrame({"Amount": df["Total Spent"]}, index=df["Category"])
-        .plot.pie(y="Amount", autopct="%.2f%%", figsize=(5, 5), legend=False)
-        .figure
-    )
+                    st.subheader("📋 Spending Breakdown")
+                    st.dataframe(summary_df)
 
-except Exception as e:
-    st.error(f"Error generating report: {e}")
-finally:
-    cursor.close()
+                    fig = px.pie(summary_df, names="Category Group", values="Total Spending",
+                                 title="Spending Distribution by Category Group")
+                    st.plotly_chart(fig, use_container_width=True)
+
+                    output = io.BytesIO()
+                    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+                        summary_df.to_excel(writer, sheet_name="Summary", index=False)
+                    output.seek(0)
+
+                    st.download_button(
+                        label="📥 Download Report as Excel",
+                        data=output,
+                        file_name="budget_summary_report.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
+                else:
+                    st.info("ℹ️ No transactions found for this user.")
+            else:
+                st.warning("⚠️ No user found with that email.")
+    except Exception as e:
+        st.error(f"❌ Error generating report: {e}")
+else:
+    st.info("Please enter your email on the Home page to proceed.")
