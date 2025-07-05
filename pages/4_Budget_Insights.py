@@ -1,45 +1,42 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
 from sqlalchemy import text
 from database import get_engine
 
-st.set_page_config(page_title="Budget Insights", page_icon="📊")
+st.set_page_config(page_title="Budget Insights", layout="wide")
 st.title("📊 Budget Insights")
 
-email = st.session_state.get("email", "")
-if not email:
+# Ensure session-based email is available
+if "email" not in st.session_state or not st.session_state.email:
     st.warning("Please enter your email on the Home page.")
     st.stop()
 
+email = st.session_state.email
 engine = get_engine()
 
 try:
     with engine.connect() as conn:
-        query = text("SELECT amount, category FROM transactions WHERE user_email = :email")
-        df = pd.read_sql(query, conn, params={"email": email})
+        query = text("""
+            SELECT t.amount, t.category
+            FROM transactions t
+            JOIN users u ON t.user_id = u.id
+            WHERE u.email = :email
+        """)
+        result = conn.execute(query, {"email": email})
+        data = pd.DataFrame(result.fetchall(), columns=result.keys())
 
-    if df.empty:
-        st.info("No transactions found.")
+    if data.empty:
+        st.info("No transactions found for this user.")
     else:
-        # Group into Needs/Wants/Savings
-        category_mapping = {
-            "groceries": "Needs", "rent": "Needs", "utilities": "Needs", "transport": "Needs",
-            "insurance": "Needs", "healthcare": "Needs", "internet": "Needs",
-            "dining": "Wants", "entertainment": "Wants", "travel": "Wants", "shopping": "Wants",
-            "subscriptions": "Wants", "savings": "Savings", "investment": "Savings",
-            "emergency fund": "Savings", "retirement": "Savings"
-        }
-        df["group"] = df["category"].str.lower().map(category_mapping).fillna("Other")
+        # Summarize spending by category
+        summary = data.groupby("category")["amount"].sum().reset_index()
+        summary.columns = ["Category", "Total Amount"]
 
-        summary = df.groupby("group")["amount"].sum().reset_index()
-        summary.columns = ["Category Group", "Total Spending"]
-
-        st.subheader("Spending Summary")
+        st.subheader("💡 Spending by Category")
         st.dataframe(summary)
 
-        fig = px.pie(summary, names="Category Group", values="Total Spending", title="Spending by Category Group")
-        st.plotly_chart(fig, use_container_width=True)
+        st.subheader("📊 Spending Breakdown")
+        st.bar_chart(summary.set_index("Category"))
 
 except Exception as e:
     st.error(f"❌ Error loading insights: {e}")
