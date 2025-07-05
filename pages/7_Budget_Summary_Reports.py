@@ -1,58 +1,57 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import io
-from sqlalchemy import text
 from database import get_engine
 
-st.set_page_config(page_title="Budget Summary Reports", page_icon="📑")
-st.title("📑 Budget Summary Reports")
+st.set_page_config(page_title="Budget Summary Reports", layout="wide")
+st.title("📋 Budget Summary Reports")
 
+# Check if email is available in session
 email = st.session_state.get("email", "")
 if not email:
     st.warning("Please enter your email on the Home page.")
     st.stop()
 
+# Get database engine
 engine = get_engine()
 
-try:
-    with engine.connect() as conn:
-        query = text("SELECT category, amount FROM transactions WHERE user_email = :email")
-        df = pd.read_sql(query, conn, params={"email": email})
+# Retrieve user_id from users table
+with engine.connect() as conn:
+    result = conn.execute(
+        "SELECT id FROM users WHERE email = %(email)s", {"email": email}
+    ).fetchone()
 
-    if df.empty:
-        st.info("No transactions found.")
-    else:
-        category_mapping = {
-            "groceries": "Needs", "rent": "Needs", "utilities": "Needs", "transport": "Needs",
-            "insurance": "Needs", "healthcare": "Needs", "internet": "Needs",
-            "dining": "Wants", "entertainment": "Wants", "travel": "Wants", "shopping": "Wants",
-            "subscriptions": "Wants",  "savings": "Savings", "investment": "Savings",
-            "emergency fund": "Savings", "retirement": "Savings"
-        }
+    if not result:
+        st.error("User not found. Please register first.")
+        st.stop()
 
-        df["Group"] = df["category"].str.lower().map(category_mapping).fillna("Other")
-        summary = df.groupby("Group")["amount"].sum().reset_index()
-        summary.columns = ["Category Group", "Total Spending"]
+    user_id = result[0]
 
-        st.subheader("Spending Summary")
-        st.dataframe(summary)
+    # Load transactions
+    df = pd.read_sql(
+        "SELECT category, amount FROM transactions WHERE user_id = %(user_id)s",
+        conn,
+        params={"user_id": user_id}
+    )
 
-        fig = px.pie(summary, names="Category Group", values="Total Spending", title="Spending Distribution")
-        st.plotly_chart(fig, use_container_width=True)
+# Validate data
+if df.empty:
+    st.warning("No transactions found for this user.")
+    st.stop()
 
-        # Export to Excel
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-            summary.to_excel(writer, sheet_name="Summary", index=False)
-        output.seek(0)
+# Summary by category
+summary = df.groupby("category")["amount"].sum().reset_index()
 
-        st.download_button(
-            label="📥 Download Report as Excel",
-            data=output,
-            file_name="budget_summary_report.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+# Display table
+st.subheader("🧾 Spending Summary by Category")
+st.dataframe(summary, use_container_width=True)
 
-except Exception as e:
-    st.error(f"❌ Error generating report: {e}")
+# Pie Chart
+st.subheader("📊 Spending Breakdown (Pie Chart)")
+fig_pie = px.pie(summary, names="category", values="amount", title="Spending Distribution")
+st.plotly_chart(fig_pie, use_container_width=True)
+
+# Stacked Bar Chart (with one bar showing breakdown)
+st.subheader("📊 Spending Breakdown (Bar Chart)")
+fig_bar = px.bar(summary, x="category", y="amount", color="category", title="Category-wise Spending")
+st.plotly_chart(fig_bar, use_container_width=True)
