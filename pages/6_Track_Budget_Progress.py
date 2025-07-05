@@ -1,72 +1,67 @@
 import streamlit as st
 import pandas as pd
-from sqlalchemy import text
-from database import get_engine
-import plotly.graph_objects as go
+from database import get_connection, get_user_id
 
 st.set_page_config(page_title="Track Budget Progress", page_icon="📈")
 st.title("📈 Track Budget Progress")
 
-email = st.session_state.get("email", "")
-if not email:
-    st.warning("Please enter your email on the Home page.")
+email = st.session_state.get("user_email", None)
+if email is None:
+    st.warning("Please log in or set an email to continue.")
     st.stop()
 
-engine = get_engine()
+user_id = get_user_id(email)
+if user_id is None:
+    st.warning("User not found.")
+    st.stop()
+
+conn = get_connection()
+cursor = conn.cursor()
 
 try:
-    with engine.connect() as conn:
-        user_result = conn.execute(text("SELECT id FROM users WHERE email = :email"), {"email": email}).fetchone()
+    cursor.execute("""
+        SELECT monthly_income, needs_percent, wants_percent, savings_percent
+        FROM budget_goals
+        WHERE user_id = %s
+    """, (user_id,))
+    goals = cursor.fetchone()
+    if not goals:
+        st.warning("No budget goals set.")
+        st.stop()
+    monthly_income, needs_pct, wants_pct, savings_pct = goals
 
-        if not user_result:
-            st.warning("User not found.")
-        else:
-            user_id = user_result[0]
+    expected = {
+        'Needs': round(monthly_income * needs_pct / 100, 2),
+        'Wants': round(monthly_income * wants_pct / 100, 2),
+        'Savings': round(monthly_income * savings_pct / 100, 2)
+    }
 
-            goals_query = text("SELECT income, needs_percent, wants_percent, savings_percent FROM budget_goals WHERE user_id = :user_id")
-            goals = conn.execute(goals_query, {"user_id": user_id}).fetchone()
+    cursor.execute("""
+        SELECT category, SUM(amount)
+        FROM transactions
+        WHERE user_id = %s
+        GROUP BY category
+    """, (user_id,))
+    actual_data = dict(cursor.fetchall())
 
-            if not goals:
-                st.warning("No budget goals set.")
-            else:
-                income, needs_pct, wants_pct, savings_pct = goals
-                budget = {
-                    "Needs": income * needs_pct / 100,
-                    "Wants": income * wants_pct / 100,
-                    "Savings": income * savings_pct / 100
-                }
+    actual = {
+        'Needs': actual_data.get('Needs', 0),
+        'Wants': actual_data.get('Wants', 0),
+        'Savings': actual_data.get('Savings', 0)
+    }
 
-                txn_query = text("SELECT category, amount FROM transactions WHERE user_email = :email")
-                txn_df = pd.read_sql(txn_query, conn, params={"email": email})
+    df = pd.DataFrame({
+        "Category": ["Needs", "Wants", "Savings"],
+        "Expected ($)": list(expected.values()),
+        "Actual ($)": list(actual.values())
+    })
 
-                category_mapping = {
-                    "groceries": "Needs", "rent": "Needs", "utilities": "Needs", "transport": "Needs",
-                    "insurance": "Needs", "healthcare": "Needs", "internet": "Needs",
-                    "dining": "Wants", "entertainment": "Wants", "travel": "Wants", "shopping": "Wants",
-                    "subscriptions": "Wants",  "savings": "Savings", "investment": "Savings",
-                    "emergency fund": "Savings", "retirement": "Savings"
-                }
+    st.subheader("Budget Comparison")
+    st.dataframe(df, use_container_width=True)
 
-                txn_df["group"] = txn_df["category"].str.lower().map(category_mapping).fillna("Other")
-                actual = txn_df.groupby("group")["amount"].sum().to_dict()
-
-                for key in ["Needs", "Wants", "Savings"]:
-                    actual.setdefault(key, 0)
-
-                comparison_df = pd.DataFrame({
-                    "Budgeted": pd.Series(budget),
-                    "Actual": pd.Series(actual)
-                })
-                comparison_df["Difference"] = comparison_df["Actual"] - comparison_df["Budgeted"]
-
-                st.subheader("💰 Budget vs. Actual")
-                st.dataframe(comparison_df)
-
-                fig = go.Figure()
-                fig.add_trace(go.Bar(x=comparison_df.index, y=comparison_df["Budgeted"], name="Budgeted"))
-                fig.add_trace(go.Bar(x=comparison_df.index, y=comparison_df["Actual"], name="Actual"))
-                fig.update_layout(barmode="group", title="Spending Comparison", yaxis_title="Amount ($)")
-                st.plotly_chart(fig)
+    st.bar_chart(df.set_index("Category"))
 
 except Exception as e:
-    st.error(f"❌ Error tracking progress: {e}")
+    st.error(f"Error retrieving budget progress: {e}")
+finally:
+    cursor.close()

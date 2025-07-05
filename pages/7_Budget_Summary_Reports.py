@@ -1,57 +1,46 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
-from database import get_engine
+from database import get_connection, get_user_id
 
-st.set_page_config(page_title="Budget Summary Reports", layout="wide")
-st.title("📋 Budget Summary Reports")
+st.set_page_config(page_title="Budget Summary Reports", page_icon="🧾")
+st.title("🧾 Budget Summary Reports")
 
-# Check if email is available in session
-email = st.session_state.get("email", "")
-if not email:
-    st.warning("Please enter your email on the Home page.")
+email = st.session_state.get("user_email", None)
+if email is None:
+    st.warning("Please log in or set an email to continue.")
     st.stop()
 
-# Get database engine
-engine = get_engine()
+user_id = get_user_id(email)
+if user_id is None:
+    st.warning("User not found.")
+    st.stop()
 
-# Retrieve user_id from users table
-with engine.connect() as conn:
-    result = conn.execute(
-        "SELECT id FROM users WHERE email = %(email)s", {"email": email}
-    ).fetchone()
+conn = get_connection()
+cursor = conn.cursor()
 
-    if not result:
-        st.error("User not found. Please register first.")
+try:
+    cursor.execute("""
+        SELECT category, SUM(amount)
+        FROM transactions
+        WHERE user_id = %s
+        GROUP BY category
+    """, (user_id,))
+    data = cursor.fetchall()
+    if not data:
+        st.warning("No transactions found for report.")
         st.stop()
 
-    user_id = result[0]
+    df = pd.DataFrame(data, columns=["Category", "Total Spent"])
+    st.dataframe(df, use_container_width=True)
 
-    # Load transactions
-    df = pd.read_sql(
-        "SELECT category, amount FROM transactions WHERE user_id = %(user_id)s",
-        conn,
-        params={"user_id": user_id}
+    st.subheader("Spending Distribution")
+    st.plotly_chart(
+        pd.DataFrame({"Amount": df["Total Spent"]}, index=df["Category"])
+        .plot.pie(y="Amount", autopct="%.2f%%", figsize=(5, 5), legend=False)
+        .figure
     )
 
-# Validate data
-if df.empty:
-    st.warning("No transactions found for this user.")
-    st.stop()
-
-# Summary by category
-summary = df.groupby("category")["amount"].sum().reset_index()
-
-# Display table
-st.subheader("🧾 Spending Summary by Category")
-st.dataframe(summary, use_container_width=True)
-
-# Pie Chart
-st.subheader("📊 Spending Breakdown (Pie Chart)")
-fig_pie = px.pie(summary, names="category", values="amount", title="Spending Distribution")
-st.plotly_chart(fig_pie, use_container_width=True)
-
-# Stacked Bar Chart (with one bar showing breakdown)
-st.subheader("📊 Spending Breakdown (Bar Chart)")
-fig_bar = px.bar(summary, x="category", y="amount", color="category", title="Category-wise Spending")
-st.plotly_chart(fig_bar, use_container_width=True)
+except Exception as e:
+    st.error(f"Error generating report: {e}")
+finally:
+    cursor.close()
