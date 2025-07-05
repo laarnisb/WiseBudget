@@ -3,7 +3,7 @@ from sqlalchemy.exc import IntegrityError
 import streamlit as st
 import pandas as pd
 
-# Initialize SQLAlchemy engine from Streamlit secrets
+# Initialize engine from Streamlit secrets
 engine = create_engine(st.secrets["DATABASE_URL"])
 
 def get_engine():
@@ -15,11 +15,16 @@ def test_connection():
     with engine.connect() as conn:
         return conn.execute(text("SELECT NOW()")).scalar()
 
+def get_user_id(conn, email):
+    """Get the user_id from the users table by email."""
+    result = conn.execute(text("SELECT id FROM users WHERE email = :email"), {"email": email}).fetchone()
+    return result[0] if result else None
+
 def insert_user(name, email, registration_date):
     """Insert a new user into the users table."""
     try:
         engine = get_engine()
-        with engine.begin() as conn:  # auto-commits the transaction
+        with engine.begin() as conn:
             conn.execute(
                 text("INSERT INTO users (name, email, registration_date) VALUES (:name, :email, :date)"),
                 {"name": name, "email": email, "date": registration_date}
@@ -32,19 +37,12 @@ def insert_user(name, email, registration_date):
 
 def insert_transactions(df: pd.DataFrame):
     """Insert multiple transactions into the transactions table."""
+    engine = get_engine()
     with engine.begin() as conn:
         for _, row in df.iterrows():
-            result = conn.execute(
-                text("SELECT id FROM users WHERE email = :email"),
-                {"email": row["user_email"]}
-            )
-            user_row = result.fetchone()
-
-            if not user_row:
-                raise ValueError(f"❌ User with email '{row['user_email']}' not found in users table.")
-
-            user_id = user_row[0]
-
+            user_id = get_user_id(conn, row["user_email"])
+            if not user_id:
+                raise ValueError(f"❌ User with email '{row['user_email']}' not found.")
             conn.execute(
                 text("""
                     INSERT INTO transactions (user_id, amount, category, description, date)
