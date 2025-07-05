@@ -16,9 +16,9 @@ def test_connection():
         return conn.execute(text("SELECT NOW()")).scalar()
 
 def insert_user(name, email, registration_date):
-    """Insert a new user into the users table using a transaction."""
+    """Insert a new user into the users table."""
     try:
-        with engine.begin() as conn:  # ✅ Ensures commit
+        with engine.connect() as conn:
             conn.execute(
                 text("INSERT INTO users (name, email, registration_date) VALUES (:name, :email, :date)"),
                 {"name": name, "email": email, "date": registration_date}
@@ -31,7 +31,7 @@ def insert_user(name, email, registration_date):
 
 def insert_transactions(df: pd.DataFrame):
     """Insert multiple transactions into the transactions table."""
-    with engine.begin() as conn:  # ✅ Ensures commit
+    with engine.connect() as conn:
         for _, row in df.iterrows():
             result = conn.execute(
                 text("SELECT id FROM users WHERE email = :email"),
@@ -46,11 +46,12 @@ def insert_transactions(df: pd.DataFrame):
 
             conn.execute(
                 text("""
-                    INSERT INTO transactions (user_id, amount, category, description, date)
-                    VALUES (:user_id, :amount, :category, :description, :date)
+                    INSERT INTO transactions (user_id, user_email, amount, category, description, date)
+                    VALUES (:user_id, :user_email, :amount, :category, :description, :date)
                 """),
                 {
                     "user_id": user_id,
+                    "user_email": row["user_email"],
                     "amount": row["amount"],
                     "category": row["category"],
                     "description": row["description"],
@@ -66,7 +67,7 @@ def get_all_transactions():
 
 def add_user_email_column():
     """Add 'user_email' column to transactions table if it does not exist."""
-    with engine.begin() as conn:
+    with engine.connect() as conn:
         result = conn.execute(text("""
             SELECT column_name 
             FROM information_schema.columns 
@@ -74,3 +75,6 @@ def add_user_email_column():
         """))
         if not result.fetchone():
             conn.execute(text("ALTER TABLE transactions ADD COLUMN user_email TEXT"))
+            print("✅ user_email column added.")
+        else:
+            print("ℹ️ user_email column already exists.")
