@@ -1,38 +1,26 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
-from sqlalchemy.exc import SQLAlchemyError
+import datetime
 from database import insert_transactions
-
-st.set_page_config(page_title="Upload Transactions", page_icon="📤")
+from utils import get_logged_in_user_email
 
 st.title("📤 Upload Transactions")
 
-st.markdown("Upload your transactions as a CSV file. Required columns: `description`, `amount`, `date`, and `user_email`. Optional: `category`.")
+st.markdown("Upload a CSV file with the columns: `description`, `amount`, `date`.")
+st.markdown("The system will automatically categorize transactions into **Needs**, **Wants**, or **Savings**.")
 
-# Define the smart categorization function
-def categorize_transaction(description):
-    description = description.lower()
+# Auto-categorize function
+def auto_categorize(description):
+    desc = description.lower()
+    if any(keyword in desc for keyword in ["grocery", "rent", "utilities", "mortgage", "insurance", "medical", "gas", "electric", "water", "internet"]):
+        return "Needs"
+    elif any(keyword in desc for keyword in ["netflix", "dining", "shopping", "entertainment", "uber", "lyft", "vacation", "movie"]):
+        return "Wants"
+    elif any(keyword in desc for keyword in ["transfer", "investment", "savings", "deposit", "retirement", "401k", "roth"]):
+        return "Savings"
+    else:
+        return "Other"
 
-    category_keywords = {
-        "Groceries": ["grocery", "supermarket", "walmart", "aldi", "trader joe", "whole foods"],
-        "Rent": ["rent", "landlord", "apartment"],
-        "Utilities": ["electric", "water", "gas", "utility", "internet", "wifi"],
-        "Transportation": ["uber", "lyft", "gas", "fuel", "transit", "train", "bus"],
-        "Dining": ["restaurant", "cafe", "mcdonald", "burger", "coffee", "starbucks"],
-        "Entertainment": ["netflix", "spotify", "cinema", "movie", "concert"],
-        "Healthcare": ["pharmacy", "doctor", "hospital", "clinic"],
-        "Shopping": ["amazon", "shopping", "store", "target", "costco"],
-        "Savings": ["transfer", "savings", "deposit"]
-    }
-
-    for category, keywords in category_keywords.items():
-        if any(keyword in description for keyword in keywords):
-            return category
-
-    return "Uncategorized"
-
-# CSV Upload
 uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
 
 if uploaded_file is not None:
@@ -40,30 +28,23 @@ if uploaded_file is not None:
         df = pd.read_csv(uploaded_file)
 
         # Validate required columns
-        required_columns = ["description", "amount", "date", "user_email"]
-        if not all(col in df.columns for col in required_columns):
-            st.error(f"❌ Missing required columns. Please include: {', '.join(required_columns)}")
+        required_cols = {"description", "amount", "date"}
+        if not required_cols.issubset(set(df.columns)):
+            st.error(f"❌ Missing required columns: {required_cols - set(df.columns)}")
         else:
-            # Auto-categorize if missing or blank
-            if "category" not in df.columns:
-                df["category"] = df["description"].apply(categorize_transaction)
-            else:
-                df["category"] = df.apply(
-                    lambda row: row["category"] if pd.notna(row["category"]) and row["category"].strip() != "" else categorize_transaction(row["description"]),
-                    axis=1
-                )
-
-            # Convert date to proper format
+            df["amount"] = pd.to_numeric(df["amount"], errors="coerce")
             df["date"] = pd.to_datetime(df["date"], errors="coerce")
+            df["category"] = df["description"].apply(auto_categorize)
+            df["user_email"] = get_logged_in_user_email()
 
-            if df["date"].isnull().any():
-                st.error("❌ One or more dates could not be parsed. Please ensure all dates are in a valid format (e.g., YYYY-MM-DD).")
+            # Drop invalid rows
+            df.dropna(subset=["amount", "date"], inplace=True)
+
+            if df.empty:
+                st.warning("⚠️ No valid transactions found after cleaning.")
             else:
                 insert_transactions(df)
-                st.success("✅ Transactions uploaded successfully!")
+                st.success("✅ Transactions uploaded and categorized successfully!")
                 st.dataframe(df)
-
-    except SQLAlchemyError as e:
-        st.error(f"❌ Database error: {e}")
     except Exception as e:
-        st.error(f"❌ Error: {e}")
+        st.error(f"❌ Failed to process file: {str(e)}")
