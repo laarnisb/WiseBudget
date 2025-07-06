@@ -1,5 +1,3 @@
-# pages/1_Register_Users.py
-
 import streamlit as st
 from database import insert_user
 from datetime import datetime
@@ -22,6 +20,7 @@ if register:
         try:
             insert_user(name, email, datetime.now())
             st.success("✅ User registered successfully!")
-            st.session_state.email = email  # Update session email after registration
+            st.session_state.email = email
+            st.session_state.user_email = email  # ✅ This fixes the Upload Transactions issue
         except ValueError as e:
             st.error(str(e))
