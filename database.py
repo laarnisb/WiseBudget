@@ -74,3 +74,6 @@ def add_user_email_column():
         """))
         if not result.fetchone():
             conn.execute(text("ALTER TABLE transactions ADD COLUMN user_email TEXT"))
+
+def get_transactions_by_user(user_email: str) -> pd.DataFrame:
+    return get_transactions_by_email(user_email)
