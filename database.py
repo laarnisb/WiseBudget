@@ -3,25 +3,12 @@ from sqlalchemy.exc import IntegrityError
 import streamlit as st
 import pandas as pd
 
-# Initialize engine from Streamlit secrets
 engine = create_engine(st.secrets["DATABASE_URL"])
 
 def get_engine():
-    """Return a new database engine instance."""
     return create_engine(st.secrets["DATABASE_URL"])
 
-def test_connection():
-    """Test the database connection."""
-    with engine.connect() as conn:
-        return conn.execute(text("SELECT NOW()")).scalar()
-
-def get_user_id(conn, email):
-    """Get the user_id from the users table by email."""
-    result = conn.execute(text("SELECT id FROM users WHERE email = :email"), {"email": email}).fetchone()
-    return result[0] if result else None
-
 def insert_user(name, email, registration_date):
-    """Insert a new user into the users table."""
     try:
         engine = get_engine()
         with engine.begin() as conn:
@@ -35,14 +22,37 @@ def insert_user(name, email, registration_date):
         else:
             raise ValueError(f"❌ Failed to register user: {str(e)}")
 
+def normalize_category(category):
+    category = str(category).lower()
+    if "grocer" in category:
+        return "Groceries"
+    elif "trans" in category or "uber" in category:
+        return "Transport"
+    elif "rent" in category or "mortgage" in category:
+        return "Housing"
+    elif "utilit" in category or "electric" in category:
+        return "Utilities"
+    elif "entertain" in category or "netflix" in category:
+        return "Entertainment"
+    elif "salary" in category or "income" in category:
+        return "Income"
+    elif "dining" in category or "restaurant" in category:
+        return "Dining"
+    else:
+        return "Other"
+
 def insert_transactions(df: pd.DataFrame):
-    """Insert multiple transactions into the transactions table."""
-    engine = get_engine()
     with engine.begin() as conn:
         for _, row in df.iterrows():
-            user_id = get_user_id(conn, row["user_email"])
-            if not user_id:
+            result = conn.execute(
+                text("SELECT id FROM users WHERE email = :email"),
+                {"email": row["user_email"]}
+            )
+            user_row = result.fetchone()
+            if not user_row:
                 raise ValueError(f"❌ User with email '{row['user_email']}' not found.")
+            user_id = user_row[0]
+            category = normalize_category(row["category"])
             conn.execute(
                 text("""
                     INSERT INTO transactions (user_id, amount, category, description, date)
@@ -51,20 +61,13 @@ def insert_transactions(df: pd.DataFrame):
                 {
                     "user_id": user_id,
                     "amount": row["amount"],
-                    "category": row["category"],
+                    "category": category,
                     "description": row["description"],
                     "date": row["date"]
                 }
             )
 
-def get_all_transactions():
-    """Fetch all transactions."""
-    with engine.connect() as conn:
-        result = conn.execute(text("SELECT * FROM transactions"))
-        return pd.DataFrame(result.fetchall(), columns=result.keys())
-
 def get_transactions_by_email(email):
-    """Get transactions for a specific user by email."""
     with engine.connect() as conn:
         result = conn.execute(
             text("""
