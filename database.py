@@ -16,9 +16,8 @@ def test_connection():
         return conn.execute(text("SELECT NOW()")).scalar()
 
 def insert_user(name, email, registration_date):
-    """Insert a new user into the users table."""
     try:
-        with engine.connect() as conn:
+        with engine.begin() as conn:
             conn.execute(
                 text("INSERT INTO users (name, email, registration_date) VALUES (:name, :email, :date)"),
                 {"name": name, "email": email, "date": registration_date}
