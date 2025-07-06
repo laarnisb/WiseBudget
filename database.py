@@ -28,34 +28,36 @@ def insert_user(name, email, registration_date):
         else:
             raise ValueError(f"❌ Failed to register user: {str(e)}")
 
-def insert_transactions(df: pd.DataFrame):
-    """Insert multiple transactions into the transactions table."""
+def insert_transactions(df: pd.DataFrame, user_email: str):
+    engine = get_engine()
     with engine.connect() as conn:
+        # Get user_id from users table
+        result = conn.execute(text("SELECT id FROM users WHERE email = :email"), {"email": user_email})
+        user_row = result.fetchone()
+        if not user_row:
+            raise ValueError(f"User with email {user_email} not found.")
+
+        user_id = user_row[0]
+
+        # Add user_id column to DataFrame
+        df["user_id"] = user_id
+
+        # Insert transactions
         for _, row in df.iterrows():
-            result = conn.execute(
-                text("SELECT id FROM users WHERE email = :email"),
-                {"email": row["user_email"]}
-            )
-            user_row = result.fetchone()
-
-            if not user_row:
-                raise ValueError(f"❌ User with email '{row['user_email']}' not found in users table.")
-
-            user_id = user_row[0]
-
             conn.execute(
                 text("""
-                    INSERT INTO transactions (user_id, amount, category, description, date)
-                    VALUES (:user_id, :amount, :category, :description, :date)
+                    INSERT INTO transactions (date, description, category, amount, user_id)
+                    VALUES (:date, :description, :category, :amount, :user_id)
                 """),
                 {
-                    "user_id": user_id,
-                    "amount": row["amount"],
-                    "category": row["category"],
+                    "date": row["date"],
                     "description": row["description"],
-                    "date": row["date"]
+                    "category": row["category"],
+                    "amount": row["amount"],
+                    "user_id": row["user_id"]
                 }
             )
+        conn.commit()
 
 def get_all_transactions():
     """Fetch all transaction records from the transactions table."""
