@@ -5,22 +5,25 @@ from datetime import datetime
 st.set_page_config(page_title="Register", page_icon="📝")
 st.title("📝 Register New User")
 
-# Use the email from session state
-if "email" not in st.session_state:
-    st.session_state.email = ""
+# Show form
+with st.form("register_form"):
+    name = st.text_input("Name")
+    email = st.text_input("Email")
+    submit = st.form_submit_button("Register")
 
-name = st.text_input("Full Name")
-email = st.text_input("Email", value=st.session_state.email)
-register = st.button("Register")
-
-if register:
+# Handle form submission
+if submit:
     if not name or not email:
         st.warning("⚠️ Please enter both name and email.")
     else:
         try:
-            insert_user(name, email, datetime.now())
-            st.success("✅ User registered successfully!")
-            st.session_state.email = email
-            st.session_state.user_email = email  # ✅ This fixes the Upload Transactions issue
+            registration_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            insert_user(name, email, registration_date)
+            st.session_state["email"] = email  # 🔑 Save email to session
+            st.success(f"✅ Registration successful! Welcome, {name}.")
         except ValueError as e:
             st.error(str(e))
+
+# Optional: Show current session email (for debug)
+if "email" in st.session_state:
+    st.info(f"📧 Logged in as: {st.session_state['email']}")
