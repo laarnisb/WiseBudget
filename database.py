@@ -3,15 +3,22 @@ from sqlalchemy.exc import IntegrityError
 import streamlit as st
 import pandas as pd
 
+# Initialize SQLAlchemy engine using Streamlit secrets
 engine = create_engine(st.secrets["DATABASE_URL"])
 
 def get_engine():
+    """Return a new database engine instance."""
     return create_engine(st.secrets["DATABASE_URL"])
 
+def test_connection():
+    """Test the connection to the database by returning the current timestamp."""
+    with engine.connect() as conn:
+        return conn.execute(text("SELECT NOW()")).scalar()
+
 def insert_user(name, email, registration_date):
+    """Insert a new user into the users table."""
     try:
-        engine = get_engine()
-        with engine.begin() as conn:
+        with engine.connect() as conn:
             conn.execute(
                 text("INSERT INTO users (name, email, registration_date) VALUES (:name, :email, :date)"),
                 {"name": name, "email": email, "date": registration_date}
@@ -22,37 +29,21 @@ def insert_user(name, email, registration_date):
         else:
             raise ValueError(f"❌ Failed to register user: {str(e)}")
 
-def normalize_category(category):
-    category = str(category).lower()
-    if "grocer" in category:
-        return "Groceries"
-    elif "trans" in category or "uber" in category:
-        return "Transport"
-    elif "rent" in category or "mortgage" in category:
-        return "Housing"
-    elif "utilit" in category or "electric" in category:
-        return "Utilities"
-    elif "entertain" in category or "netflix" in category:
-        return "Entertainment"
-    elif "salary" in category or "income" in category:
-        return "Income"
-    elif "dining" in category or "restaurant" in category:
-        return "Dining"
-    else:
-        return "Other"
-
 def insert_transactions(df: pd.DataFrame):
-    with engine.begin() as conn:
+    """Insert multiple transactions into the transactions table."""
+    with engine.connect() as conn:
         for _, row in df.iterrows():
             result = conn.execute(
                 text("SELECT id FROM users WHERE email = :email"),
                 {"email": row["user_email"]}
             )
             user_row = result.fetchone()
+
             if not user_row:
-                raise ValueError(f"❌ User with email '{row['user_email']}' not found.")
+                raise ValueError(f"❌ User with email '{row['user_email']}' not found in users table.")
+
             user_id = user_row[0]
-            category = normalize_category(row["category"])
+
             conn.execute(
                 text("""
                     INSERT INTO transactions (user_id, amount, category, description, date)
@@ -61,42 +52,25 @@ def insert_transactions(df: pd.DataFrame):
                 {
                     "user_id": user_id,
                     "amount": row["amount"],
-                    "category": category,
+                    "category": row["category"],
                     "description": row["description"],
                     "date": row["date"]
                 }
             )
 
-# ✅ Unified naming: This works with pages/6_Track_Budget_Progress.py
-def get_transactions_by_user(user_email: str) -> pd.DataFrame:
-    return get_transactions_by_email(user_email)
-
-# ✅ Original working query
-def get_transactions_by_email(email):
+def get_all_transactions():
+    """Fetch all transaction records from the transactions table."""
     with engine.connect() as conn:
-        result = conn.execute(
-            text("""
-                SELECT t.date, t.description, t.category, t.amount
-                FROM transactions t
-                JOIN users u ON t.user_id = u.id
-                WHERE u.email = :email
-                ORDER BY t.date DESC
-            """),
-            {"email": email}
-        )
+        result = conn.execute(text("SELECT * FROM transactions"))
         return pd.DataFrame(result.fetchall(), columns=result.keys())
 
-# ✅ Budget goals for use in budget tracking page
-def get_budget_goals_by_user(user_email: str) -> pd.DataFrame:
+def add_user_email_column():
+    """Add 'user_email' column to transactions table if it does not exist."""
     with engine.connect() as conn:
-        result = conn.execute(
-            text("""
-                SELECT needs, wants, savings
-                FROM budget_goals
-                WHERE user_email = :email
-                ORDER BY created_at DESC
-                LIMIT 1
-            """),
-            {"email": user_email}
-        )
-        return pd.DataFrame(result.fetchall(), columns=result.keys())
+        result = conn.execute(text("""
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_name = 'transactions' AND column_name = 'user_email'
+        """))
+        if not result.fetchone():
+            conn.execute(text("ALTER TABLE transactions ADD COLUMN user_email TEXT"))

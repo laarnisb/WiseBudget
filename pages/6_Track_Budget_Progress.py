@@ -1,62 +1,77 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
-from database import get_transactions_by_user, get_budget_goals_by_user
-from utils import get_current_user_email
+from sqlalchemy import text
+from database import get_engine
+import plotly.graph_objects as go
 
 st.set_page_config(page_title="Track Budget Progress", page_icon="📊")
 st.title("📊 Track Budget Progress")
 
-email = get_current_user_email()
+st.write("Enter your registered email to compare actual spending with your budget goals.")
 
-if not email:
-    st.warning("Please log in to view your budget progress.")
-    st.stop()
+email = st.text_input("Email")
 
-# Get actual transactions
-transactions = get_transactions_by_user(email)
-if transactions.empty:
-    st.info("No transactions found. Please upload your transactions.")
-    st.stop()
+if email:
+    try:
+        engine = get_engine()
+        with engine.connect() as conn:
+            user_query = text("SELECT id FROM users WHERE email = :email")
+            user_result = conn.execute(user_query, {"email": email}).fetchone()
 
-# Get budget goals
-goals = get_budget_goals_by_user(email)
-if goals.empty:
-    st.info("No budget goals found. Please set your budget goals first.")
-    st.stop()
+            if user_result:
+                user_id = user_result[0]
 
-# Aggregate actual spending by category
-actual_totals = (
-    transactions.groupby("category")["amount"]
-    .sum()
-    .reindex(["Needs", "Wants", "Savings"], fill_value=0)
-    .reset_index()
-    .rename(columns={"amount": "Actual"})
-)
+                goals_query = text("""
+                    SELECT income, needs_percent, wants_percent, savings_percent
+                    FROM budget_goals WHERE user_id = :user_id
+                """)
+                goals_result = conn.execute(goals_query, {"user_id": user_id}).fetchone()
 
-# Merge with targets
-merged = actual_totals.copy()
-merged["Target"] = [
-    goals["needs"].values[0],
-    goals["wants"].values[0],
-    goals["savings"].values[0],
-]
-merged = merged.rename(columns={"category": "type"})
+                if goals_result:
+                    income, needs_pct, wants_pct, savings_pct = goals_result
+                    budget = {
+                        "Needs": round(income * needs_pct / 100, 2),
+                        "Wants": round(income * wants_pct / 100, 2),
+                        "Savings": round(income * savings_pct / 100, 2)
+                    }
 
-# Show data preview
-st.subheader("Budget Comparison Table")
-st.dataframe(merged)
+                    txn_query = text("SELECT category, amount FROM transactions WHERE user_id = :user_id")
+                    txn_df = pd.DataFrame(conn.execute(txn_query, {"user_id": user_id}).fetchall(),
+                                          columns=["category", "amount"])
 
-# Safely plot chart
-if not merged.empty and all(col in merged.columns for col in ["type", "Actual", "Target"]):
-    fig = px.bar(
-        merged,
-        x="type",
-        y=["Actual", "Target"],
-        barmode="group",
-        title="Actual vs. Target Spending",
-        labels={"value": "Amount", "type": "Category"},
-    )
-    st.plotly_chart(fig)
-else:
-    st.warning("Cannot display chart. Check if required columns or values are missing.")
+                    if not txn_df.empty:
+                        category_mapping = {
+                            "groceries": "Needs", "rent": "Needs", "utilities": "Needs", "transport": "Needs",
+                            "insurance": "Needs", "healthcare": "Needs", "internet": "Needs",
+                            "dining": "Wants", "entertainment": "Wants", "travel": "Wants", "shopping": "Wants",
+                            "subscriptions": "Wants",
+                            "savings": "Savings", "investment": "Savings", "emergency fund": "Savings", "retirement": "Savings"
+                        }
+                        txn_df["group"] = txn_df["category"].str.lower().map(category_mapping).fillna("Other")
+
+                        actual = txn_df.groupby("group")["amount"].sum().to_dict()
+                        for key in ["Needs", "Wants", "Savings"]:
+                            actual.setdefault(key, 0)
+
+                        comparison_df = pd.DataFrame({
+                            "Budgeted": pd.Series(budget),
+                            "Actual": pd.Series(actual)
+                        })
+                        comparison_df["Difference"] = comparison_df["Actual"] - comparison_df["Budgeted"]
+
+                        st.subheader("💰 Budget vs. Actual")
+                        st.dataframe(comparison_df)
+
+                        fig = go.Figure()
+                        fig.add_trace(go.Bar(x=list(budget.keys()), y=list(budget.values()), name="Budgeted"))
+                        fig.add_trace(go.Bar(x=list(actual.keys()), y=list(actual.values()), name="Actual"))
+                        fig.update_layout(barmode='group', title="Spending Comparison", yaxis_title="Amount ($)")
+                        st.plotly_chart(fig)
+                    else:
+                        st.info("ℹ️ No transactions found for this user.")
+                else:
+                    st.warning("⚠️ No budget goals found for this user.")
+            else:
+                st.warning("⚠️ No user found with that email.")
+    except Exception as e:
+        st.error(f"❌ Failed to track budget progress: {e}")
