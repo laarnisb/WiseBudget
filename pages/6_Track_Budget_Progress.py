@@ -1,63 +1,62 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from database import get_transactions_by_email
+from database import get_transactions_by_user, get_budget_goals_by_user
+from utils import get_current_user_email
 
-st.set_page_config(page_title="Track Budget Progress", page_icon="📈")
-st.title("📈 Track Budget Progress")
+st.set_page_config(page_title="Track Budget Progress", page_icon="📊")
+st.title("📊 Track Budget Progress")
 
-if "email" not in st.session_state or not st.session_state.email:
-    st.warning("⚠️ Please enter your email on the Home page.")
+email = get_current_user_email()
+
+if not email:
+    st.warning("Please log in to view your budget progress.")
     st.stop()
 
-# Fetch transactions from the database
-df = get_transactions_by_email(st.session_state.email)
-
-if df.empty:
-    st.info("No transactions found. Please upload your data first.")
+# Get actual transactions
+transactions = get_transactions_by_user(email)
+if transactions.empty:
+    st.info("No transactions found. Please upload your transactions.")
     st.stop()
 
-# Map normalized categories to budget types
-CATEGORY_TO_TYPE = {
-    "Groceries": "Needs",
-    "Rent": "Needs",
-    "Utilities": "Needs",
-    "Transport": "Needs",
-    "Healthcare": "Needs",
-    "Dining": "Wants",
-    "Shopping": "Wants",
-    "Entertainment": "Wants",
-    "Travel": "Wants",
-    "Savings": "Savings",
-    "Investment": "Savings"
-}
-df["type"] = df["category"].map(CATEGORY_TO_TYPE).fillna("Other")
+# Get budget goals
+goals = get_budget_goals_by_user(email)
+if goals.empty:
+    st.info("No budget goals found. Please set your budget goals first.")
+    st.stop()
 
-# Aggregate spending by type
-summary = df.groupby("type")["amount"].sum().reset_index()
+# Aggregate actual spending by category
+actual_totals = (
+    transactions.groupby("category")["amount"]
+    .sum()
+    .reindex(["Needs", "Wants", "Savings"], fill_value=0)
+    .reset_index()
+    .rename(columns={"amount": "Actual"})
+)
 
-# Get target allocations
-needs_pct = st.session_state.get("needs_pct", 50)
-wants_pct = st.session_state.get("wants_pct", 30)
-savings_pct = st.session_state.get("savings_pct", 20)
+# Merge with targets
+merged = actual_totals.copy()
+merged["Target"] = [
+    goals["needs"].values[0],
+    goals["wants"].values[0],
+    goals["savings"].values[0],
+]
+merged = merged.rename(columns={"category": "type"})
 
-total_spent = summary["amount"].sum()
-target_df = pd.DataFrame({
-    "type": ["Needs", "Wants", "Savings"],
-    "target": [
-        total_spent * needs_pct / 100,
-        total_spent * wants_pct / 100,
-        total_spent * savings_pct / 100
-    ]
-})
+# Show data preview
+st.subheader("Budget Comparison Table")
+st.dataframe(merged)
 
-# Merge actual vs. target
-merged = pd.merge(summary, target_df, on="type", how="outer").fillna(0)
-
-# Display table
-st.subheader("💡 Budget Summary")
-st.dataframe(merged.rename(columns={"amount": "Actual", "target": "Target"}), use_container_width=True)
-
-# Plot
-fig = px.bar(merged, x="type", y=["Actual", "Target"], barmode="group", title="Actual vs. Target Spending")
-st.plotly_chart(fig, use_container_width=True)
+# Safely plot chart
+if not merged.empty and all(col in merged.columns for col in ["type", "Actual", "Target"]):
+    fig = px.bar(
+        merged,
+        x="type",
+        y=["Actual", "Target"],
+        barmode="group",
+        title="Actual vs. Target Spending",
+        labels={"value": "Amount", "type": "Category"},
+    )
+    st.plotly_chart(fig)
+else:
+    st.warning("Cannot display chart. Check if required columns or values are missing.")
