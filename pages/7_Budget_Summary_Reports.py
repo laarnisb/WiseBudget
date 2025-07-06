@@ -1,28 +1,46 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
+import plotly.express as px
 from database import get_transactions_by_email
 
-st.set_page_config(page_title="Budget Summary Reports", page_icon="📑")
-st.title("📑 Budget Summary Reports")
+st.set_page_config(page_title="Budget Summary Reports", page_icon="📊")
+st.title("📊 Budget Summary Reports")
 
-email = st.session_state.get("email", "")
-if not email:
-    st.warning("⚠️ Please enter your email on the Home page first.")
+if "email" not in st.session_state or not st.session_state.email:
+    st.warning("⚠️ Please enter your email on the Home page.")
     st.stop()
 
-df = get_transactions_by_email(email)
+# Fetch user transactions
+df = get_transactions_by_email(st.session_state.email)
 
 if df.empty:
-    st.info("ℹ️ No transactions found.")
-else:
-    st.subheader("Spending by Category")
-    category_totals = df.groupby("category")["amount"].sum()
+    st.info("No transactions available. Please upload your transactions first.")
+    st.stop()
 
-    fig, ax = plt.subplots()
-    ax.pie(category_totals, labels=category_totals.index, autopct="%1.1f%%", startangle=90)
-    ax.axis("equal")
-    st.pyplot(fig)
+# Correct category-to-type mapping
+CATEGORY_TO_TYPE = {
+    "Groceries": "Needs",
+    "Rent": "Needs",
+    "Utilities": "Needs",
+    "Transport": "Needs",
+    "Healthcare": "Needs",
+    "Dining": "Wants",
+    "Shopping": "Wants",
+    "Entertainment": "Wants",
+    "Travel": "Wants",
+    "Savings": "Savings",
+    "Investment": "Savings"
+}
+df["type"] = df["category"].map(CATEGORY_TO_TYPE).fillna("Other")
 
-    st.markdown("**Detailed Breakdown**")
-    st.dataframe(category_totals.reset_index().rename(columns={"amount": "Total Amount"}))
+# Summarize by type
+type_summary = df.groupby("type")["amount"].sum().reset_index()
+
+# Display table
+st.subheader("💵 Spending Breakdown")
+st.dataframe(type_summary, use_container_width=True)
+
+# Pie chart
+st.subheader("📌 Spending Distribution")
+fig = px.pie(type_summary, values="amount", names="type", title="Spending by Budget Type")
+st.plotly_chart(fig, use_container_width=True)

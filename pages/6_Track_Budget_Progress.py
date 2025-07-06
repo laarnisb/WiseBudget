@@ -1,62 +1,63 @@
-# pages/6_Track_Budget_Progress.py
-
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
-from database import get_budget_goals, get_actual_spending_by_category
-from auth import get_logged_in_user_email
+import plotly.express as px
+from database import get_transactions_by_email
 
-st.set_page_config(page_title="Track Budget Progress", page_icon="📊")
-st.title("📊 Track Budget Progress")
+st.set_page_config(page_title="Track Budget Progress", page_icon="📈")
+st.title("📈 Track Budget Progress")
 
-st.subheader("📉 Budget vs. Actual Spending")
+if "email" not in st.session_state or not st.session_state.email:
+    st.warning("⚠️ Please enter your email on the Home page.")
+    st.stop()
 
-# Get user email
-user_email = get_logged_in_user_email()
+# Fetch transactions from the database
+df = get_transactions_by_email(st.session_state.email)
 
-if user_email:
-    # Fetch data from the database
-    budget_goals = get_budget_goals(user_email)
-    actual_spending = get_actual_spending_by_category(user_email)
+if df.empty:
+    st.info("No transactions found. Please upload your data first.")
+    st.stop()
 
-    # Define all categories
-    categories = ["Needs", "Wants", "Savings", "Other"]
+# Map normalized categories to budget types
+CATEGORY_TO_TYPE = {
+    "Groceries": "Needs",
+    "Rent": "Needs",
+    "Utilities": "Needs",
+    "Transport": "Needs",
+    "Healthcare": "Needs",
+    "Dining": "Wants",
+    "Shopping": "Wants",
+    "Entertainment": "Wants",
+    "Travel": "Wants",
+    "Savings": "Savings",
+    "Investment": "Savings"
+}
+df["type"] = df["category"].map(CATEGORY_TO_TYPE).fillna("Other")
 
-    # Create budgeted dictionary from fetched goals
-    budgeted = {cat: 0 for cat in categories}
-    for entry in budget_goals:
-        category, amount = entry
-        if category in budgeted:
-            budgeted[category] = amount
+# Aggregate spending by type
+summary = df.groupby("type")["amount"].sum().reset_index()
 
-    # Create actual spending dictionary from fetched data
-    actual = {cat: 0 for cat in categories}
-    for entry in actual_spending:
-        category, total = entry
-        if category in actual:
-            actual[category] = total
+# Get target allocations
+needs_pct = st.session_state.get("needs_pct", 50)
+wants_pct = st.session_state.get("wants_pct", 30)
+savings_pct = st.session_state.get("savings_pct", 20)
 
-    # Create DataFrame
-    category_totals = pd.DataFrame({
-        "Budgeted": budgeted,
-        "Actual": actual
-    }).T
+total_spent = summary["amount"].sum()
+target_df = pd.DataFrame({
+    "type": ["Needs", "Wants", "Savings"],
+    "target": [
+        total_spent * needs_pct / 100,
+        total_spent * wants_pct / 100,
+        total_spent * savings_pct / 100
+    ]
+})
 
-    # Ensure numeric values and handle missing data
-    category_totals = category_totals.fillna(0)
-    category_totals = category_totals.astype(float)
-    category_totals.loc["Difference"] = category_totals.loc["Actual"] - category_totals.loc["Budgeted"]
+# Merge actual vs. target
+merged = pd.merge(summary, target_df, on="type", how="outer").fillna(0)
 
-    # Display table
-    st.dataframe(category_totals.T.style.format("{:.2f}"))
+# Display table
+st.subheader("💡 Budget Summary")
+st.dataframe(merged.rename(columns={"amount": "Actual", "target": "Target"}), use_container_width=True)
 
-    # Bar chart
-    st.subheader("📊 Bar Chart")
-    fig, ax = plt.subplots()
-    category_totals.T[["Budgeted", "Actual"]].plot(kind="bar", ax=ax)
-    plt.ylabel("Amount ($)")
-    plt.title("Budgeted vs. Actual Spending")
-    st.pyplot(fig)
-
-else:
-    st.warning("⚠️ Please log in to view your budget progress.")
+# Plot
+fig = px.bar(merged, x="type", y=["Actual", "Target"], barmode="group", title="Actual vs. Target Spending")
+st.plotly_chart(fig, use_container_width=True)
