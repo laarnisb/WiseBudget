@@ -75,4 +75,15 @@ def add_user_email_column():
             conn.execute(text("ALTER TABLE transactions ADD COLUMN user_email TEXT"))
 
 def get_transactions_by_user(user_email: str) -> pd.DataFrame:
-    return get_transactions_by_email(user_email)
+    with engine.connect() as conn:
+        result = conn.execute(
+            text("""
+                SELECT t.date, t.description, t.category, t.amount
+                FROM transactions t
+                JOIN users u ON t.user_id = u.id
+                WHERE u.email = :email
+                ORDER BY t.date DESC
+            """),
+            {"email": user_email}
+        )
+        return pd.DataFrame(result.fetchall(), columns=result.keys())
