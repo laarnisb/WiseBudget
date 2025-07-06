@@ -67,6 +67,11 @@ def insert_transactions(df: pd.DataFrame):
                 }
             )
 
+# ✅ Unified naming: This works with pages/6_Track_Budget_Progress.py
+def get_transactions_by_user(user_email: str) -> pd.DataFrame:
+    return get_transactions_by_email(user_email)
+
+# ✅ Original working query
 def get_transactions_by_email(email):
     with engine.connect() as conn:
         result = conn.execute(
@@ -78,5 +83,20 @@ def get_transactions_by_email(email):
                 ORDER BY t.date DESC
             """),
             {"email": email}
+        )
+        return pd.DataFrame(result.fetchall(), columns=result.keys())
+
+# ✅ Budget goals for use in budget tracking page
+def get_budget_goals_by_user(user_email: str) -> pd.DataFrame:
+    with engine.connect() as conn:
+        result = conn.execute(
+            text("""
+                SELECT needs, wants, savings
+                FROM budget_goals
+                WHERE user_email = :email
+                ORDER BY created_at DESC
+                LIMIT 1
+            """),
+            {"email": user_email}
         )
         return pd.DataFrame(result.fetchall(), columns=result.keys())
