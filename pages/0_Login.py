@@ -20,7 +20,7 @@ if st.button("Login"):
             if result:
                 st.session_state["email"] = email_input
                 st.success("✅ Login successful! Redirecting to Home...")
-                st.experimental_rerun()  # refresh app with session set
+                st.switch_page("app.py")  # 👈 Navigate to Home page
             else:
                 st.error("❌ Email not found. Please register first.")
 
