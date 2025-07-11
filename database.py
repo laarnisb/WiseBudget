@@ -1,14 +1,21 @@
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import IntegrityError
 import streamlit as st
+import os
 import pandas as pd
 
-# Initialize SQLAlchemy engine using Streamlit secrets
-engine = create_engine(st.secrets["DATABASE_URL"])
+def get_database_url():
+    # First try Streamlit secrets
+    try:
+        return st.secrets["DATABASE_URL"]
+    except:
+        # Fallback for scripts
+        return os.environ.get("DATABASE_URL")
+
+engine = create_engine(get_database_url())
 
 def get_engine():
-    """Return a new database engine instance."""
-    return create_engine(st.secrets["DATABASE_URL"])
+    return create_engine(get_database_url())
 
 def test_connection():
     """Test the connection to the database by returning the current timestamp."""
