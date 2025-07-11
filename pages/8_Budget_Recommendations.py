@@ -2,101 +2,99 @@ import streamlit as st
 import pandas as pd
 from sqlalchemy import text
 from database import get_engine
-from utils import get_current_user_email
 
 st.set_page_config(page_title="Budget Recommendations", page_icon="💡")
 st.title("💡 Personalized Budget Recommendations")
 
-email = get_current_user_email()
-
+# Ensure user is logged in
+email = st.session_state.get("email", "")
 if not email:
     st.warning("Please enter your email on the Home page.")
     st.stop()
 
-engine = get_engine()
-with engine.connect() as conn:
-    # Get user_id
-    user_query = text("SELECT id FROM users WHERE email = :email")
-    user_result = conn.execute(user_query, {"email": email}).fetchone()
+try:
+    engine = get_engine()
+    with engine.connect() as conn:
+        query = text("""
+            SELECT t.category, SUM(t.amount) AS total
+            FROM transactions t
+            JOIN users u ON t.user_id = u.id
+            WHERE u.email = :email
+            GROUP BY t.category
+        """)
+        result = conn.execute(query, {"email": email})
+        df = pd.DataFrame(result.fetchall(), columns=result.keys())
 
-    if not user_result:
-        st.error("❌ User not found.")
-        st.stop()
-
-    user_id = user_result[0]
-
-    # Fetch latest budget goals
-    goals_query = text("""
-        SELECT income, needs_percent, wants_percent, savings_percent
-        FROM budget_goals
-        WHERE user_id = :user_id
-        ORDER BY created_at DESC
-        LIMIT 1
-    """)
-    goals_result = conn.execute(goals_query, {"user_id": user_id}).fetchone()
-
-    if not goals_result:
-        st.warning("⚠️ No budget goals found. Please set your goals first.")
-        st.stop()
-
-    income, needs_pct, wants_pct, savings_pct = goals_result
-    budget_targets = {
-        "Needs": round(income * needs_pct / 100, 2),
-        "Wants": round(income * wants_pct / 100, 2),
-        "Savings": round(income * savings_pct / 100, 2)
-    }
-
-    # Fetch transaction data
-    txn_query = text("""
-        SELECT category, amount
-        FROM transactions
-        WHERE user_id = :user_id
-    """)
-    txn_df = pd.DataFrame(conn.execute(txn_query, {"user_id": user_id}).fetchall(),
-                          columns=["category", "amount"])
-
-if txn_df.empty:
-    st.info("ℹ️ No transactions found for this user.")
-    st.stop()
-
-# Classify spending into groups
-category_mapping = {
-    "groceries": "Needs", "rent": "Needs", "utilities": "Needs", "transport": "Needs",
-    "insurance": "Needs", "healthcare": "Needs", "internet": "Needs",
-    "dining": "Wants", "entertainment": "Wants", "travel": "Wants", "shopping": "Wants",
-    "subscriptions": "Wants",
-    "savings": "Savings", "investment": "Savings", "emergency fund": "Savings", "retirement": "Savings"
-}
-txn_df["group"] = txn_df["category"].str.lower().map(category_mapping).fillna("Other")
-
-actual_spending = txn_df.groupby("group")["amount"].sum().to_dict()
-for group in ["Needs", "Wants", "Savings"]:
-    actual_spending.setdefault(group, 0)
-
-# Recommendation logic
-st.subheader("📝 Recommendations")
-for group in ["Needs", "Wants", "Savings"]:
-    actual = actual_spending[group]
-    target = budget_targets[group]
-    variance = actual - target
-    percent_diff = (variance / target) * 100 if target != 0 else 0
-
-    if group == "Wants" and percent_diff > 10:
-        st.warning(f"🔸 You're spending {percent_diff:.1f}% more on *{group}* than your target. Consider cutting back on non-essentials.")
-    elif group == "Savings" and actual < target:
-        shortfall = target - actual
-        st.error(f"💰 You're behind on your *{group}* goal by ${shortfall:.2f}. Try automating transfers or adjusting spending in Wants.")
-    elif group == "Needs" and actual < target * 0.9:
-        st.success(f"✅ Great job! You're keeping your *{group}* expenses below target.")
+    if df.empty:
+        st.info("ℹ️ No transactions found to generate recommendations.")
     else:
-        st.info(f"🧾 Your *{group}* spending is within acceptable range.")
+        # Define category groups
+        needs = {"groceries", "rent", "utilities", "transportation", "insurance", "healthcare"}
+        wants = {"dining", "entertainment", "shopping", "travel", "subscriptions"}
+        savings = {"savings", "investments", "debt payment"}
 
-# Show summary
-st.subheader("📊 Summary")
-summary_df = pd.DataFrame({
-    "Target": pd.Series(budget_targets),
-    "Actual": pd.Series(actual_spending)
-})
-summary_df["Variance"] = summary_df["Actual"] - summary_df["Target"]
-summary_df["% Difference"] = (summary_df["Variance"] / summary_df["Target"] * 100).round(1)
-st.dataframe(summary_df)
+        def assign_group(cat):
+            cat = cat.strip().lower()
+            if cat in needs:
+                return "Needs"
+            elif cat in wants:
+                return "Wants"
+            elif cat in savings:
+                return "Savings"
+            else:
+                return "Other"
+
+        df["group"] = df["category"].apply(assign_group)
+        df = df[df["group"] != "Other"]
+
+        group_summary = df.groupby("group")["total"].sum().reset_index()
+        total_spent = group_summary["total"].sum()
+
+        group_summary["actual"] = group_summary["total"] / total_spent
+        group_summary["target"] = group_summary["group"].map({
+            "Needs": 0.50,
+            "Wants": 0.30,
+            "Savings": 0.20
+        })
+
+        summary_df = group_summary[["group", "actual", "target"]]
+        st.subheader("📊 Budget Allocation Summary")
+        st.dataframe(summary_df.style.format({
+            "actual": "{:.2%}",
+            "target": "{:.2%}"
+        }), use_container_width=True)
+
+        # Generate Recommendations
+        st.subheader("📝 Recommendations")
+        recs = []
+
+        for _, row in summary_df.iterrows():
+            group = row["group"]
+            actual = row["actual"]
+            target = row["target"]
+
+            # Safeguard against missing data
+            if pd.isna(actual) or pd.isna(target):
+                continue
+
+            if group == "Needs" and actual > target * 1.1:
+                recs.append("You're spending more than planned on Needs. Try identifying essential vs. non-essential items.")
+            elif group == "Wants" and actual > target * 1.1:
+                recs.append("Wants are exceeding budget. Consider limiting entertainment or luxury purchases.")
+            elif group == "Savings" and actual < target * 0.9:
+                recs.append("You're saving less than planned. Try setting up automatic transfers to savings.")
+            elif group == "Needs" and actual < target * 0.9:
+                recs.append("Great job keeping Needs below budget! Just ensure essential needs are met.")
+            elif group == "Wants" and actual < target * 0.9:
+                recs.append("You're well under on Wants. Consider allocating more to Savings if possible.")
+            elif group == "Savings" and actual > target * 1.1:
+                recs.append("Excellent! You're saving more than expected.")
+
+        if recs:
+            for r in recs:
+                st.write(f"✅ {r}")
+        else:
+            st.success("🎯 Your spending is well-aligned with your budget goals!")
+
+except Exception as e:
+    st.error(f"❌ Error generating recommendations: {e}")
