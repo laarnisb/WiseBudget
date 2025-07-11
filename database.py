@@ -4,19 +4,14 @@ import streamlit as st
 import os
 import pandas as pd
 
-def get_database_url():
-    # First try Streamlit secrets
-    try:
-        return st.secrets["DATABASE_URL"]
-    except:
-        # Fallback for scripts
-        return os.environ.get("DATABASE_URL")
+# TEMP: Hardcoded for local training/testing
+DATABASE_URL = "postgresql://postgres.glgdvqapwjxjkxqfjpvz:tQUbHAfubF7J3PmD@aws-0-us-west-1.pooler.supabase.com:5432/postgres"
 
-engine = create_engine(get_database_url())
+engine = create_engine(DATABASE_URL)
 
 def get_engine():
-    return create_engine(get_database_url())
-
+    return engine
+    
 def test_connection():
     """Test the connection to the database by returning the current timestamp."""
     with engine.connect() as conn:
