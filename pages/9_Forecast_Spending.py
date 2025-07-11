@@ -51,7 +51,7 @@ input_sequence = scaled[-WINDOW_SIZE:]
 X_input = input_sequence.reshape((1, WINDOW_SIZE, 1))
 
 # --- Load Model + Predict ---
-model = load_model("models/spending_forecast_lstm.h5")
+model = load_model("models/spending_forecast_lstm.h5", compile=False)
 predicted_scaled = model.predict(X_input)
 predicted_amount = scaler.inverse_transform(predicted_scaled)[0][0]
 
