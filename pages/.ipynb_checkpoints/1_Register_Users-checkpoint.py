@@ -3,21 +3,27 @@ from database import insert_user
 from datetime import datetime
 
 st.set_page_config(page_title="Register", page_icon="📝")
-st.title("📝 Register User")
+st.title("📝 Register New User")
 
-st.write("Please enter your name and email to register.")
-
+# Show form
 with st.form("register_form"):
-    name = st.text_input("Full Name")
+    name = st.text_input("Name")
     email = st.text_input("Email")
-    submitted = st.form_submit_button("Register")
+    submit = st.form_submit_button("Register")
 
-    if submitted:
-        if not name or not email:
-            st.warning("⚠️ Please enter both name and email.")
-        else:
-            try:
-                insert_user(name, email, datetime.utcnow())
-                st.success(f"✅ {name} has been registered successfully!")
-            except ValueError as ve:
-                st.error(str(ve))
+# Handle form submission
+if submit:
+    if not name or not email:
+        st.warning("⚠️ Please enter both name and email.")
+    else:
+        try:
+            registration_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            insert_user(name, email, registration_date)
+            st.session_state["email"] = email  # 🔑 Save email to session
+            st.success(f"✅ Registration successful! Welcome, {name}.")
+        except ValueError as e:
+            st.error(str(e))
+
+# Optional: Show current session email (for debug)
+if "email" in st.session_state:
+    st.info(f"📧 Logged in as: {st.session_state['email']}")

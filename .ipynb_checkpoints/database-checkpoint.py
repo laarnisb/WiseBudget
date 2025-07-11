@@ -1,14 +1,21 @@
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import IntegrityError
 import streamlit as st
+import os
 import pandas as pd
 
-# Initialize SQLAlchemy engine using Streamlit secrets
-engine = create_engine(st.secrets["DATABASE_URL"])
+def get_database_url():
+    # First try Streamlit secrets
+    try:
+        return st.secrets["DATABASE_URL"]
+    except:
+        # Fallback for scripts
+        return os.environ.get("DATABASE_URL")
+
+engine = create_engine(get_database_url())
 
 def get_engine():
-    """Return a new database engine instance."""
-    return create_engine(st.secrets["DATABASE_URL"])
+    return create_engine(get_database_url())
 
 def test_connection():
     """Test the connection to the database by returning the current timestamp."""
@@ -16,9 +23,8 @@ def test_connection():
         return conn.execute(text("SELECT NOW()")).scalar()
 
 def insert_user(name, email, registration_date):
-    """Insert a new user into the users table."""
     try:
-        with engine.connect() as conn:
+        with engine.begin() as conn:
             conn.execute(
                 text("INSERT INTO users (name, email, registration_date) VALUES (:name, :email, :date)"),
                 {"name": name, "email": email, "date": registration_date}
@@ -29,34 +35,36 @@ def insert_user(name, email, registration_date):
         else:
             raise ValueError(f"❌ Failed to register user: {str(e)}")
 
-def insert_transactions(df: pd.DataFrame):
-    """Insert multiple transactions into the transactions table."""
+def insert_transactions(df: pd.DataFrame, user_email: str):
+    engine = get_engine()
     with engine.connect() as conn:
+        # Get user_id from users table
+        result = conn.execute(text("SELECT id FROM users WHERE email = :email"), {"email": user_email})
+        user_row = result.fetchone()
+        if not user_row:
+            raise ValueError(f"User with email {user_email} not found.")
+
+        user_id = user_row[0]
+
+        # Add user_id column to DataFrame
+        df["user_id"] = user_id
+
+        # Insert transactions
         for _, row in df.iterrows():
-            result = conn.execute(
-                text("SELECT id FROM users WHERE email = :email"),
-                {"email": row["user_email"]}
-            )
-            user_row = result.fetchone()
-
-            if not user_row:
-                raise ValueError(f"❌ User with email '{row['user_email']}' not found in users table.")
-
-            user_id = user_row[0]
-
             conn.execute(
                 text("""
-                    INSERT INTO transactions (user_id, amount, category, description, date)
-                    VALUES (:user_id, :amount, :category, :description, :date)
+                    INSERT INTO transactions (date, description, category, amount, user_id)
+                    VALUES (:date, :description, :category, :amount, :user_id)
                 """),
                 {
-                    "user_id": user_id,
-                    "amount": row["amount"],
-                    "category": row["category"],
+                    "date": row["date"],
                     "description": row["description"],
-                    "date": row["date"]
+                    "category": row["category"],
+                    "amount": row["amount"],
+                    "user_id": row["user_id"]
                 }
             )
+        conn.commit()
 
 def get_all_transactions():
     """Fetch all transaction records from the transactions table."""
@@ -74,3 +82,17 @@ def add_user_email_column():
         """))
         if not result.fetchone():
             conn.execute(text("ALTER TABLE transactions ADD COLUMN user_email TEXT"))
+
+def get_transactions_by_user(user_email: str) -> pd.DataFrame:
+    with engine.connect() as conn:
+        result = conn.execute(
+            text("""
+                SELECT t.date, t.description, t.category, t.amount
+                FROM transactions t
+                JOIN users u ON t.user_id = u.id
+                WHERE u.email = :email
+                ORDER BY t.date DESC
+            """),
+            {"email": user_email}
+        )
+        return pd.DataFrame(result.fetchall(), columns=result.keys())
