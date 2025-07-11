@@ -58,7 +58,7 @@ predicted_amount = scaler.inverse_transform(predicted_scaled)[0][0]
 # --- Display Forecast ---
 next_month = monthly["date"].max() + pd.DateOffset(months=1)
 forecast_df = monthly.copy()
-forecast_df = forecast_df.append({"date": next_month, "amount": predicted_amount}, ignore_index=True)
+forecast_df = pd.concat([forecast_df, pd.DataFrame([{"date": next_month, "amount": predicted_amount}])], ignore_index=True)
 
 st.subheader("📊 Monthly Spending with Forecast")
 st.line_chart(forecast_df.set_index("date")["amount"])
