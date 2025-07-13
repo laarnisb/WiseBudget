@@ -9,3 +9,4 @@ tensorflow
 scikit-learn
 pandas
 bleach
+python-dotenv
