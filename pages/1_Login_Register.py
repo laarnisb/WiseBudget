@@ -2,6 +2,7 @@ import streamlit as st
 from database import insert_user, get_user_by_email
 from utils import login_user
 from datetime import datetime
+import bcrypt
 
 st.set_page_config(page_title="Login/Register", page_icon="🔐")
 st.title("🔐 Login or Register")
@@ -18,7 +19,7 @@ with tab1:
             st.warning("Please enter both email and password.")
         else:
             user = get_user_by_email(login_email)
-            if user and user["password"] == login_password:
+            if user and bcrypt.checkpw(login_password.encode('utf-8'), user[3].encode('utf-8')):
                 st.session_state.email = login_email
                 st.success("✅ Login successful.")
                 st.rerun()
@@ -40,7 +41,7 @@ with tab2:
             if existing_user:
                 st.error("❌ This email is already registered.")
             else:
-                insert_user(reg_name, reg_email, datetime.now())
+                insert_user(reg_name, reg_email, reg_password, datetime.now())
                 st.success("✅ Registration successful. You are now logged in.")
                 st.session_state.email = reg_email
                 st.rerun()
