@@ -31,6 +31,8 @@ def insert_user(name, email, password, registration_date):
             raise ValueError(f"⚠️ User with email '{email}' is already registered.")
         else:
             raise ValueError(f"❌ Failed to register user: {str(e)}")
+    except Exception as e:
+        raise ValueError(f"❌ Unexpected error: {str(e)}")
 
 def get_user_by_email(email):
     with engine.connect() as conn:
