@@ -1,0 +1,46 @@
+# Streamlit page navigation settings
+
+[[pages]]
+path = "Home.py"
+name = "Home"
+icon = "🏠"
+
+[[pages]]
+path = "pages/1_Login_Register.py"
+name = "Login/Register"
+icon = "🔐"
+
+[[pages]]
+path = "pages/2_Upload_Transactions.py"
+name = "Upload Transactions"
+icon = "📤"
+
+[[pages]]
+path = "pages/3_View_Transactions.py"
+name = "View Transactions"
+icon = "📋"
+
+[[pages]]
+path = "pages/4_Set_Budget_Goals.py"
+name = "Set Budget Goals"
+icon = "🎯"
+
+[[pages]]
+path = "pages/5_Recommendations.py"
+name = "Recommendations"
+icon = "💡"
+
+[[pages]]
+path = "pages/6_Track_Budget_Progress.py"
+name = "Track Progress"
+icon = "📈"
+
+[[pages]]
+path = "pages/7_Budget_Summary_Reports.py"
+name = "Summary Reports"
+icon = "📑"
+
+[[pages]]
+path = "pages/9_Forecast_Spending.py"
+name = "Spending Forecast"
+icon = "📊"
