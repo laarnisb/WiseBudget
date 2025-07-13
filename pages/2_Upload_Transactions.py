@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from database import insert_transactions
+from security_utils import sanitize_input
 
 st.set_page_config(page_title="Upload Transactions", page_icon="📤")
 st.title("📤 Upload Your Transactions")
@@ -22,8 +23,9 @@ if uploaded_file:
             st.error("❌ The uploaded file must contain the following columns: "
                      "`description`, `category`, `amount`, `date`")
         else:
-            # Normalize and clean category data
-            df["category"] = df["category"].str.strip().str.lower()
+            # Normalize and sanitize inputs
+            df["category"] = df["category"].astype(str).str.strip().str.lower().apply(sanitize_input)
+            df["description"] = df["description"].astype(str).apply(sanitize_input)
 
             # Insert transactions for the current user
             insert_transactions(df, email)
