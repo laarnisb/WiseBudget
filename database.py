@@ -3,15 +3,20 @@ from sqlalchemy.exc import IntegrityError
 import streamlit as st
 import os
 import pandas as pd
+from dotenv import load_dotenv
 
-# TEMP: Hardcoded for local training/testing
-DATABASE_URL = "postgresql://postgres.glgdvqapwjxjkxqfjpvz:tQUbHAfubF7J3PmD@aws-0-us-west-1.pooler.supabase.com:5432/postgres"
+# Load .env variables for local development
+load_dotenv()
 
+# Get database URL from environment
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+# Initialize engine
 engine = create_engine(DATABASE_URL)
 
 def get_engine():
     return engine
-    
+
 def test_connection():
     """Test the connection to the database by returning the current timestamp."""
     with engine.connect() as conn:
@@ -30,9 +35,14 @@ def insert_user(name, email, registration_date):
         else:
             raise ValueError(f"❌ Failed to register user: {str(e)}")
 
-def insert_transactions(df: pd.DataFrame, user_email: str):
-    engine = get_engine()
+def get_user_by_email(email):
+    """Fetch user details by email."""
     with engine.connect() as conn:
+        result = conn.execute(text("SELECT * FROM users WHERE email = :email"), {"email": email})
+        return result.fetchone()
+
+def insert_transactions(df: pd.DataFrame, user_email: str):
+    with engine.begin() as conn:
         # Get user_id from users table
         result = conn.execute(text("SELECT id FROM users WHERE email = :email"), {"email": user_email})
         user_row = result.fetchone()
@@ -40,8 +50,6 @@ def insert_transactions(df: pd.DataFrame, user_email: str):
             raise ValueError(f"User with email {user_email} not found.")
 
         user_id = user_row[0]
-
-        # Add user_id column to DataFrame
         df["user_id"] = user_id
 
         # Insert transactions
@@ -59,7 +67,20 @@ def insert_transactions(df: pd.DataFrame, user_email: str):
                     "user_id": row["user_id"]
                 }
             )
-        conn.commit()
+
+def get_transactions_by_user(user_email: str) -> pd.DataFrame:
+    with engine.connect() as conn:
+        result = conn.execute(
+            text("""
+                SELECT t.date, t.description, t.category, t.amount
+                FROM transactions t
+                JOIN users u ON t.user_id = u.id
+                WHERE u.email = :email
+                ORDER BY t.date DESC
+            """),
+            {"email": user_email}
+        )
+        return pd.DataFrame(result.fetchall(), columns=result.keys())
 
 def get_all_transactions():
     """Fetch all transaction records from the transactions table."""
@@ -78,16 +99,3 @@ def add_user_email_column():
         if not result.fetchone():
             conn.execute(text("ALTER TABLE transactions ADD COLUMN user_email TEXT"))
 
-def get_transactions_by_user(user_email: str) -> pd.DataFrame:
-    with engine.connect() as conn:
-        result = conn.execute(
-            text("""
-                SELECT t.date, t.description, t.category, t.amount
-                FROM transactions t
-                JOIN users u ON t.user_id = u.id
-                WHERE u.email = :email
-                ORDER BY t.date DESC
-            """),
-            {"email": user_email}
-        )
-        return pd.DataFrame(result.fetchall(), columns=result.keys())
