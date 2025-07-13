@@ -59,7 +59,8 @@ try:
                         "Budgeted": pd.Series(budget),
                         "Actual": pd.Series(actual)
                     })
-                    comparison_df["Difference"] = comparison_df["Actual"] - comparison_df["Budgeted"]
+                    # ✅ Corrected: Difference = Budgeted - Actual
+                    comparison_df["Difference"] = comparison_df["Budgeted"] - comparison_df["Actual"]
 
                     st.subheader("💰 Budget vs. Actual")
                     st.dataframe(comparison_df)
