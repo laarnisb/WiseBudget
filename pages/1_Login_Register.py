@@ -1,18 +1,20 @@
 import streamlit as st
-from datetime import datetime
 from database import insert_user, get_user_by_email
+from datetime import datetime
 import bcrypt
 
-st.set_page_config(page_title="Login/Register", page_icon="🔐")
+st.set_page_config(page_title="Login / Register", page_icon="🔐")
+st.title("🔐 Login or Register")
 
-# --- UI Display ---
-st.title("🔐 Login / Register")
+# Session state for login
+if "email" not in st.session_state:
+    st.session_state.email = None
 
-tab1, tab2 = st.tabs(["Login", "Register New User"])
+tabs = st.tabs(["Login", "Register"])
 
-# --- LOGIN TAB ---
-with tab1:
-    st.subheader("🔑 Login")
+# --- Login Tab ---
+with tabs[0]:
+    st.subheader("Login")
 
     login_email = st.text_input("Email", key="login_email")
     login_password = st.text_input("Password", type="password", key="login_password")
@@ -24,37 +26,23 @@ with tab1:
             st.session_state.email = login_email
             st.switch_page("Home.py")
         else:
-            st.error("❌ Invalid email or password.")
+            st.error("Invalid email or password.")
 
-if 
-    st.success("Login successful!")
-    st.session_state.email = login_email
-    st.switch_page("Home.py")
-else:
-    st.error("Invalid email or password.")
+# --- Register Tab ---
+with tabs[1]:
+    st.subheader("Register New User")
 
-
-# --- REGISTER TAB ---
-with tab2:
-    st.subheader("📝 Register New User")
-
-    reg_name = st.text_input("Full Name", key="reg_name")
-    reg_email = st.text_input("Email", key="reg_email")
-    reg_password = st.text_input("Password", type="password", key="reg_password")
+    name = st.text_input("Full Name", key="register_name")
+    email = st.text_input("Email", key="register_email")
+    password = st.text_input("Password", type="password", key="register_password")
 
     if st.button("Register"):
-        if not reg_name or not reg_email or not reg_password:
-            st.warning("⚠️ Please fill in all fields.")
+        if not name or not email or not password:
+            st.warning("Please fill in all fields.")
         else:
+            hashed_password = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
             try:
-                hashed_password = bcrypt.hashpw(reg_password.encode("utf-8"), bcrypt.gensalt())
-                insert_user(reg_name, reg_email, hashed_password, datetime.now())
-                st.success("✅ Registration successful! Please log in.")
+                insert_user(name, email, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), hashed_password)
+                st.success("Registration successful! Please log in.")
             except ValueError as ve:
                 st.error(str(ve))
-            except Exception as e:
-                st.error("❌ An unexpected error occurred during registration.")
-
-# Optional horizontal rule and trust notice
-st.markdown("---")
-st.markdown("🔒 **Your data is private and encrypted.**")
