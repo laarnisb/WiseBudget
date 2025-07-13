@@ -19,7 +19,7 @@ with tab1:
 
     if st.button("Login"):
         user = get_user_by_email(login_email)
-        if user and bcrypt.checkpw(login_password.encode("utf-8"), bytes(user[3])):
+        if user and bcrypt.checkpw(login_password.encode("utf-8"), user[3].encode("utf-8")):
             st.success(f"Welcome back, {user[1]}!")
             st.session_state["email"] = login_email
         else:
