@@ -10,3 +10,4 @@ scikit-learn
 pandas
 bleach
 python-dotenv
+bcrypt
