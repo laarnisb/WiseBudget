@@ -40,7 +40,7 @@ with tab2:
             if existing_user:
                 st.error("❌ This email is already registered.")
             else:
-                insert_user(reg_name, reg_email, reg_password, datetime.now())
+                insert_user(reg_name, reg_email, datetime.now())
                 st.success("✅ Registration successful. You are now logged in.")
                 st.session_state.email = reg_email
                 st.rerun()
