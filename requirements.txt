@@ -11,3 +11,4 @@ pandas
 bleach
 python-dotenv
 bcrypt
+supabase==1.0.3
