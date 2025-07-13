@@ -20,7 +20,10 @@ def test_connection():
 
 def insert_user(name, email, password, registration_date):
     try:
-        hashed_pw = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+        # Hash the password only if it's a string (not already hashed)
+        if isinstance(password, str):
+            password = password.encode('utf-8')
+        hashed_pw = bcrypt.hashpw(password, bcrypt.gensalt())
         with engine.begin() as conn:
             conn.execute(
                 text("INSERT INTO users (name, email, password, registration_date) VALUES (:name, :email, :password, :date)"),
