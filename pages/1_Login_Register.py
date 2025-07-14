@@ -1,6 +1,5 @@
 import streamlit as st
 from database import insert_user, get_user_by_email
-from datetime import datetime
 import bcrypt
 
 st.set_page_config(page_title="Login / Register", page_icon="🔐")
@@ -41,7 +40,7 @@ with tabs[1]:
             st.warning("Please fill in all fields.")
         else:
             try:
-                insert_user(name, email, password, datetime.now())
+                insert_user(name, email, password)
                 st.success("Registration successful! Please log in.")
             except ValueError as ve:
                 st.error(str(ve))
