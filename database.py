@@ -21,20 +21,15 @@ def test_connection():
     except Exception as e:
         return f"❌ Supabase connection error: {e}"
 
-# This assumes you're handling auth response properly after sign-up or login
-print("AUTH RESPONSE:", response)
-print("INSERTING USER:", data)
-
 def insert_user(name, email, password):
     try:
         # Register the user via Supabase Auth
         auth_response = client.auth.sign_up({"email": email, "password": password})
-
         if auth_response.user is None:
             raise ValueError("❌ Failed to register user via Supabase auth.")
 
         user_id = auth_response.user.id
-        access_token = auth_response.session.access_token  # ✅ Required for RLS
+        access_token = auth_response.session.access_token
 
         # Set client auth session so RLS policies work
         client.auth.session = auth_response.session
@@ -51,9 +46,8 @@ def insert_user(name, email, password):
             "registration_date": datetime.utcnow().isoformat()
         }
 
-        # Insert with valid session attached
+        # Insert user record
         response = client.table("users").insert(data).execute()
-
         if response.data:
             return True
         else:
@@ -65,7 +59,7 @@ def get_user_by_email(email):
     try:
         response = client.table("users").select("*").eq("email", email).execute()
         if response.data:
-            return response.data[0]  # Return user dictionary
+            return response.data[0]
         return None
     except Exception as e:
         raise ValueError(f"❌ Failed to fetch user: {str(e)}")
