@@ -1,47 +1,61 @@
-# database.py
-
-import psycopg2
+from sqlalchemy import create_engine, text
+from sqlalchemy.exc import IntegrityError
 import streamlit as st
-from psycopg2.extras import RealDictCursor
+import os
+import pandas as pd
+from dotenv import load_dotenv
+import bcrypt
+from supabase import create_client
+from datetime import datetime
 
-# Get DB connection using Streamlit secrets
-def get_connection():
-    try:
-        DATABASE_URL = st.secrets["DATABASE_URL"]
-        return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
-    except KeyError:
-        st.error("❌ DATABASE_URL not found in Streamlit secrets.")
-        raise
-    except psycopg2.OperationalError as e:
-        st.error(f"❌ Failed to connect to the database: {e}")
-        raise
+# Load environment variables
+load_dotenv()
+DATABASE_URL = os.getenv("DATABASE_URL")
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-# Sample query functions
+# Create PostgreSQL and Supabase clients
+engine = create_engine(DATABASE_URL)
+client = create_client(SUPABASE_URL, SUPABASE_KEY)
+client.postgrest.schema = "public"
+
+def get_engine():
+    return engine
+
+def test_connection():
+    with engine.connect() as conn:
+        return conn.execute(text("SELECT NOW()")).scalar()
+
 def insert_user(name, email, password, registration_date):
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute(
-        "INSERT INTO users (name, email, password, registration_date) VALUES (%s, %s, %s, %s)",
-        (name, email, password, registration_date),
-    )
-    conn.commit()
-    cur.close()
-    conn.close()
+    try:
+        if isinstance(password, str):
+            password = password.encode('utf-8')
+        hashed_pw = bcrypt.hashpw(password, bcrypt.gensalt())
+        
+        # Ensure registration_date is a datetime object
+        if isinstance(registration_date, str):
+            registration_date = datetime.fromisoformat(registration_date)
+
+        with engine.begin() as conn:
+            conn.execute(
+                text("INSERT INTO users (name, email, password, registration_date) VALUES (:name, :email, :password, :date)"),
+                {
+                    "name": name,
+                    "email": email,
+                    "password": hashed_pw,
+                    "date": registration_date
+                }
+            )
+    except IntegrityError as e:
+        if 'users_email_key' in str(e.orig):
+            raise ValueError(f"⚠️ User with email '{email}' is already registered.")
+        else:
+            raise ValueError(f"❌ Failed to register user: {str(e)}")
+    except Exception as e:
+        raise ValueError(f"❌ Unexpected error: {str(e)}")
 
 def get_user_by_email(email):
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT * FROM users WHERE email = %s", (email,))
-    user = cur.fetchone()
-    cur.close()
-    conn.close()
-    return user
-
-def get_transactions_by_user(email):
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT * FROM transactions WHERE email = %s", (email,))
-    transactions = cur.fetchall()
-    cur.close()
-    conn.close()
-    return transactions
+    response = client.table("users").select("*").eq("email", email).execute()
+    if response.data:
+        return response.data[0]  # Return user record as dictionary
+    return None

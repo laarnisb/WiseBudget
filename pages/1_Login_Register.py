@@ -1,47 +1,47 @@
 import streamlit as st
-import bcrypt
-from database import get_user_by_email, insert_user
+from database import insert_user, get_user_by_email
 from datetime import datetime
+import bcrypt
 
 st.set_page_config(page_title="Login / Register", page_icon="🔐")
+st.title("🔐 Login or Register")
 
-st.title("🔐 Login or 📝 Register")
+# Session state for login
+if "email" not in st.session_state:
+    st.session_state.email = None
 
-tab1, tab2 = st.tabs(["🔐 Login", "📝 Register"])
+tabs = st.tabs(["Login", "Register"])
 
-# --- LOGIN TAB ---
-with tab1:
-    st.subheader("Login to Your Account")
+# --- Login Tab ---
+with tabs[0]:
+    st.subheader("Login")
+
     login_email = st.text_input("Email", key="login_email")
     login_password = st.text_input("Password", type="password", key="login_password")
 
     if st.button("Login"):
         user = get_user_by_email(login_email)
-        if user:
-            hashed_pw = user[4]  # assuming password is at index 4
-            if bcrypt.checkpw(login_password.encode(), hashed_pw.encode()):
-                st.session_state.email = login_email
-                st.success("Login successful!")
-                st.switch_page("Home.py")
-            else:
-                st.error("Incorrect password.")
+        if user and bcrypt.checkpw(login_password.encode("utf-8"), user["password"].encode("utf-8")):
+            st.success("Login successful!")
+            st.session_state.email = login_email
+            st.switch_page("Home.py")
         else:
-            st.error("User not found.")
+            st.error("Invalid email or password.")
 
-# --- REGISTER TAB ---
-with tab2:
-    st.subheader("Register a New Account")
-    name = st.text_input("Full Name")
+# --- Register Tab ---
+with tabs[1]:
+    st.subheader("Register New User")
+
+    name = st.text_input("Full Name", key="register_name")
     email = st.text_input("Email", key="register_email")
     password = st.text_input("Password", type="password", key="register_password")
 
     if st.button("Register"):
-        if not all([name, email, password]):
-            st.warning("Please fill out all fields.")
-        elif get_user_by_email(email):
-            st.error("Email is already registered.")
+        if not name or not email or not password:
+            st.warning("Please fill in all fields.")
         else:
-            hashed_pw = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-            insert_user(name, email, hashed_pw, datetime.utcnow())
-            st.success("Registration successful. You can now log in.")
-            st.experimental_rerun()
+            try:
+                insert_user(name, email, password, datetime.now())
+                st.success("Registration successful! Please log in.")
+            except ValueError as ve:
+                st.error(str(ve))
