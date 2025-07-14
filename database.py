@@ -1,61 +1,68 @@
-from sqlalchemy import create_engine, text
-from sqlalchemy.exc import IntegrityError
-import streamlit as st
-import os
-import pandas as pd
-from dotenv import load_dotenv
-import bcrypt
 from supabase import create_client
+import streamlit as st
+import bcrypt
 from datetime import datetime
 
-# Load environment variables
-load_dotenv()
-DATABASE_URL = os.getenv("DATABASE_URL")
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+# Load secrets from Streamlit settings
+SUPABASE_URL = st.secrets["SUPABASE_URL"]
+SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 
-# Create PostgreSQL and Supabase clients
-engine = create_engine(DATABASE_URL)
+# Create Supabase client
 client = create_client(SUPABASE_URL, SUPABASE_KEY)
 client.postgrest.schema = "public"
 
-def get_engine():
-    return engine
-
 def test_connection():
-    with engine.connect() as conn:
-        return conn.execute(text("SELECT NOW()")).scalar()
+    try:
+        # A simple fetch to test connection (e.g., from 'users' table)
+        response = client.table("users").select("id").limit(1).execute()
+        if response.status_code == 200:
+            return "✅ Supabase connection successful."
+        else:
+            return f"❌ Supabase connection failed: {response.status_code} {response.data}"
+    except Exception as e:
+        return f"❌ Supabase connection error: {str(e)}"
 
 def insert_user(name, email, password, registration_date):
     try:
         if isinstance(password, str):
             password = password.encode('utf-8')
-        hashed_pw = bcrypt.hashpw(password, bcrypt.gensalt())
-        
-        # Ensure registration_date is a datetime object
+        hashed_pw = bcrypt.hashpw(password, bcrypt.gensalt()).decode('utf-8')
+
         if isinstance(registration_date, str):
             registration_date = datetime.fromisoformat(registration_date)
 
-        with engine.begin() as conn:
-            conn.execute(
-                text("INSERT INTO users (name, email, password, registration_date) VALUES (:name, :email, :password, :date)"),
-                {
-                    "name": name,
-                    "email": email,
-                    "password": hashed_pw,
-                    "date": registration_date
-                }
-            )
-    except IntegrityError as e:
-        if 'users_email_key' in str(e.orig):
-            raise ValueError(f"⚠️ User with email '{email}' is already registered.")
+        data = {
+            "name": name,
+            "email": email,
+            "password": hashed_pw,
+            "registration_date": registration_date.isoformat()
+        }
+
+        response = client.table("users").insert(data).execute()
+
+        if response.status_code == 201:
+            return True
+        elif response.status_code == 409:
+            raise ValueError(f"⚠️ User with email '{email}' already exists.")
         else:
-            raise ValueError(f"❌ Failed to register user: {str(e)}")
+            raise ValueError(f"❌ Failed to register user: {response.data}")
     except Exception as e:
         raise ValueError(f"❌ Unexpected error: {str(e)}")
 
 def get_user_by_email(email):
-    response = client.table("users").select("*").eq("email", email).execute()
-    if response.data:
-        return response.data[0]  # Return user record as dictionary
-    return None
+    try:
+        response = client.table("users").select("*").eq("email", email).execute()
+        if response.data:
+            return response.data[0]  # Return user dictionary
+        return None
+    except Exception as e:
+        raise ValueError(f"❌ Failed to fetch user: {str(e)}")
+
+def get_transactions_by_user(email):
+    try:
+        response = client.table("transactions").select("*").eq("email", email).execute()
+        if response.data:
+            return response.data
+        return []
+    except Exception as e:
+        raise ValueError(f"❌ Failed to fetch transactions: {str(e)}")
