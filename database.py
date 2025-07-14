@@ -4,7 +4,7 @@ import os
 
 # Environment variables (or hardcode securely during testing)
 SUPABASE_URL = "https://glgdvqapwjxjkxqfjpvz.supabase.co"
-SUPABASE_KEY = "your-supabase-anon-key"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdsZ2R2cWFwd2p4amt4cWZqcHZ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTAwMTUwOTgsImV4cCI6MjA2NTU5MTA5OH0.9VyOu-eqXj3ZL3jtLGcKOFwh72sbeUa8WQ50CY-BAjA"
 
 client = create_client(SUPABASE_URL, SUPABASE_KEY)
 client.postgrest.schema = "public"
