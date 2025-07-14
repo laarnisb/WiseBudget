@@ -1,45 +1,53 @@
-from sqlalchemy import create_engine, text
-from sqlalchemy.exc import IntegrityError
 import pandas as pd
+from sqlalchemy import create_engine, text
 import streamlit as st
 
+# Use DATABASE_URL from Streamlit secrets
 DATABASE_URL = st.secrets["DATABASE_URL"]
+
+# Create SQLAlchemy engine
 engine = create_engine(DATABASE_URL)
 
-def get_engine():
-    return engine
 
-def test_connection():
-    with engine.connect() as conn:
-        return conn.execute(text("SELECT NOW()")).scalar()
-
-def insert_user(name, email, password_hash, registration_date):
+# Insert a new user (registration)
+def insert_user(name: str, email: str, hashed_password: str):
     try:
         with engine.begin() as conn:
             conn.execute(
-                text("INSERT INTO users (name, email, password, registration_date) VALUES (:name, :email, :password, :date)"),
-                {"name": name, "email": email, "password": password_hash, "date": registration_date}
+                text("INSERT INTO users (name, email, password) VALUES (:name, :email, :password)"),
+                {"name": name, "email": email, "password": hashed_password}
             )
-    except IntegrityError as e:
-        if 'users_email_key' in str(e.orig):
-            raise ValueError(f"⚠️ User with email '{email}' is already registered.")
-        else:
-            raise ValueError(f"❌ Failed to register user: {str(e)}")
+        return True
+    except Exception as e:
+        print("Error inserting user:", e)
+        return False
 
-def get_user_by_email(email):
+
+# Get user by email (for login)
+def get_user_by_email(email: str):
     with engine.connect() as conn:
-        result = conn.execute(text("SELECT * FROM users WHERE email = :email"), {"email": email})
+        result = conn.execute(
+            text("SELECT * FROM users WHERE email = :email"),
+            {"email": email}
+        )
         return result.fetchone()
 
+
+# Insert uploaded transactions for a specific user
 def insert_transactions(df: pd.DataFrame, user_email: str):
-    with engine.connect() as conn:
-        result = conn.execute(text("SELECT id FROM users WHERE email = :email"), {"email": user_email})
+    with engine.begin() as conn:
+        # Fetch user ID
+        result = conn.execute(
+            text("SELECT id FROM users WHERE email = :email"),
+            {"email": user_email}
+        )
         user_row = result.fetchone()
         if not user_row:
             raise ValueError(f"User with email {user_email} not found.")
         user_id = user_row[0]
         df["user_id"] = user_id
 
+        # Insert each transaction
         for _, row in df.iterrows():
             conn.execute(
                 text("""
@@ -54,9 +62,10 @@ def insert_transactions(df: pd.DataFrame, user_email: str):
                     "user_id": row["user_id"]
                 }
             )
-        conn.commit()
 
-def get_transactions_by_user(user_email: str) -> pd.DataFrame:
+
+# Get all transactions for a specific user
+def get_transactions_by_email(user_email: str):
     with engine.connect() as conn:
         result = conn.execute(
             text("""
@@ -68,4 +77,4 @@ def get_transactions_by_user(user_email: str) -> pd.DataFrame:
             """),
             {"email": user_email}
         )
-        return pd.DataFrame(result.fetchall(), columns=result.keys())
+        return result.fetchall()
