@@ -23,17 +23,22 @@ def test_connection():
 
 def insert_user(name, email, password):
     try:
-        # Step 1: Register the user via Supabase Auth
+        # Register the user via Supabase Auth
         auth_response = client.auth.sign_up({"email": email, "password": password})
+
         if auth_response.user is None:
             raise ValueError("❌ Failed to register user via Supabase auth.")
 
-        user_id = auth_response.user.id  # Supabase UID
+        user_id = auth_response.user.id
+        access_token = auth_response.session.access_token  # ✅ Required for RLS
 
-        # Step 2: Hash password for local table (optional)
+        # Set client auth session so RLS policies work
+        client.auth.session = auth_response.session
+
+        # Hash the password
         hashed_pw = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
-        # Step 3: Insert into public.users table
+        # Prepare user data
         data = {
             "id": user_id,
             "name": name,
@@ -42,8 +47,9 @@ def insert_user(name, email, password):
             "registration_date": datetime.utcnow().isoformat()
         }
 
+        # Insert with valid session attached
         response = client.table("users").insert(data).execute()
-        
+
         if response.data:
             return True
         else:
