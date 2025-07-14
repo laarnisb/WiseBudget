@@ -1,61 +1,48 @@
-from sqlalchemy import create_engine, text
-from sqlalchemy.exc import IntegrityError
-import streamlit as st
-import os
-import pandas as pd
-from dotenv import load_dotenv
-import bcrypt
 from supabase import create_client
 from datetime import datetime
+import os
 
-# Load environment variables
-load_dotenv()
-DATABASE_URL = os.getenv("DATABASE_URL")
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+# Environment variables (or hardcode securely during testing)
+SUPABASE_URL = "https://glgdvqapwjxjkxqfjpvz.supabase.co"
+SUPABASE_KEY = "your-supabase-anon-key"
 
-# Create PostgreSQL and Supabase clients
-engine = create_engine(DATABASE_URL)
 client = create_client(SUPABASE_URL, SUPABASE_KEY)
 client.postgrest.schema = "public"
 
-def get_engine():
-    return engine
-
-def test_connection():
-    with engine.connect() as conn:
-        return conn.execute(text("SELECT NOW()")).scalar()
-
-def insert_user(name, email, password, registration_date):
+def insert_user(name, email, hashed_password, registration_date):
+    """
+    Inserts a new user into the users table.
+    Password is expected as hex string.
+    """
     try:
-        if isinstance(password, str):
-            password = password.encode('utf-8')
-        hashed_pw = bcrypt.hashpw(password, bcrypt.gensalt())
-        
-        # Ensure registration_date is a datetime object
-        if isinstance(registration_date, str):
-            registration_date = datetime.fromisoformat(registration_date)
-
-        with engine.begin() as conn:
-            conn.execute(
-                text("INSERT INTO users (name, email, password, registration_date) VALUES (:name, :email, :password, :date)"),
-                {
-                    "name": name,
-                    "email": email,
-                    "password": hashed_pw,
-                    "date": registration_date
-                }
-            )
-    except IntegrityError as e:
-        if 'users_email_key' in str(e.orig):
-            raise ValueError(f"⚠️ User with email '{email}' is already registered.")
-        else:
-            raise ValueError(f"❌ Failed to register user: {str(e)}")
+        result = client.table("users").insert({
+            "name": name,
+            "email": email,
+            "password": hashed_password,
+            "registration_date": registration_date.isoformat()  # Ensure correct timestamp format
+        }).execute()
+        return result
     except Exception as e:
-        raise ValueError(f"❌ Unexpected error: {str(e)}")
+        print(f"Insert error: {e}")
+        raise
 
 def get_user_by_email(email):
-    response = client.table("users").select("*").eq("email", email).execute()
-    if response.data:
-        return response.data[0]  # Return user record as dictionary
-    return None
+    """
+    Retrieves a user row from the users table by email.
+    Returns a tuple: (id, name, email, password, registration_date)
+    """
+    try:
+        result = client.table("users").select("*").eq("email", email).limit(1).execute()
+        if result.data:
+            user = result.data[0]
+            return (
+                user.get("id"),
+                user.get("name"),
+                user.get("email"),
+                user.get("password"),  # stored as hex string
+                user.get("registration_date")
+            )
+        return None
+    except Exception as e:
+        print(f"Fetch error: {e}")
+        raise
