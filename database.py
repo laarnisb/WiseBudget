@@ -50,3 +50,21 @@ def insert_user(name, email, password):
             raise ValueError(f"❌ Failed to insert user: {response}")
     except Exception as e:
         raise ValueError(f"❌ Unexpected error: {str(e)}")
+
+def get_user_by_email(email):
+    try:
+        response = client.table("users").select("*").eq("email", email).execute()
+        if response.data:
+            return response.data[0]  # Return user dictionary
+        return None
+    except Exception as e:
+        raise ValueError(f"❌ Failed to fetch user: {str(e)}")
+
+def get_transactions_by_user(email):
+    try:
+        response = client.table("transactions").select("*").eq("email", email).execute()
+        if response.data:
+            return response.data
+        return []
+    except Exception as e:
+        raise ValueError(f"❌ Failed to fetch transactions: {str(e)}")
