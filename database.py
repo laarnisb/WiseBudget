@@ -13,13 +13,13 @@ client.postgrest.schema = "public"
 
 def test_connection():
     try:
-        response = client.table("users").select("id").limit(1).execute()
-        if response.data:
-            return "✅ Supabase connection successful."
+        result = client.table("users").select("*").limit(1).execute()
+        if result.data:
+            return "✅ Supabase connected and data fetched."
         else:
-            return "⚠️ Supabase connected, but no data found in 'users' table."
+            return "⚠️ Supabase connected but no data in 'users' table."
     except Exception as e:
-        return f"❌ Supabase connection error: {str(e)}"
+        return f"❌ Supabase connection error: {e}"
 
 # This assumes you're handling auth response properly after sign-up or login
 print("AUTH RESPONSE:", response)
