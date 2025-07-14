@@ -23,46 +23,28 @@ def test_connection():
 
 def insert_user(name, email, password):
     try:
-        # Get authenticated user's UID
-        user_info = client.auth.get_user()
-        user_id = user_info.user.id
+        # Step 1: Register the user via Supabase Auth
+        auth_response = client.auth.sign_up({"email": email, "password": password})
+        if auth_response.user is None:
+            raise ValueError("❌ Failed to register user via Supabase auth.")
 
-        # Hash the password
+        user_id = auth_response.user.id  # Supabase UID
+
+        # Step 2: Hash password for local table (optional)
         hashed_pw = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
-        # Prepare data for insert
+        # Step 3: Insert into public.users table
         data = {
-            "id": user_id,  # Matches Supabase Auth UID
+            "id": user_id,
             "name": name,
             "email": email,
             "password": hashed_pw,
             "registration_date": datetime.utcnow().isoformat()
         }
 
-        # Insert user row
         response = client.table("users").insert(data).execute()
 
         if response.data:
             return True
         else:
-            raise ValueError(f"❌ Failed to register user: {response}")
-    except Exception as e:
-        raise ValueError(f"❌ Unexpected error: {str(e)}")
-
-def get_user_by_email(email):
-    try:
-        response = client.table("users").select("*").eq("email", email).execute()
-        if response.data:
-            return response.data[0]
-        return None
-    except Exception as e:
-        raise ValueError(f"❌ Failed to fetch user: {str(e)}")
-
-def get_transactions_by_user(email):
-    try:
-        response = client.table("transactions").select("*").eq("email", email).execute()
-        if response.data:
-            return response.data
-        return []
-    except Exception as e:
-        raise ValueError(f"❌ Failed to fetch transactions: {str(e)}")
+            raise ValueError(f"
