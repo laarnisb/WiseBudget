@@ -1,23 +1,15 @@
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import streamlit as st
-from database import get_connection
+from database import test_connection
 
-st.set_page_config(page_title="🔌 DB Connection Test", page_icon="🔌")
-st.title("🔌 Database Connection Test")
+st.set_page_config(page_title="Test Connection", page_icon="🔌")
+st.title("🔌 Test Database Connection")
 
-st.info("Testing connection to your Supabase PostgreSQL database...")
-
-conn = get_connection()
-
-if conn:
-    try:
-        cur = conn.cursor()
-        cur.execute("SELECT NOW();")
-        result = cur.fetchone()[0]
-        st.success(f"✅ Connected successfully. Server time: {result}")
-        cur.close()
-    except Exception as e:
-        st.error(f"⚠️ Query failed: {e}")
-    finally:
-        conn.close()
-else:
-    st.error("❌ Could not establish a database connection.")
+try:
+    result = test_connection()
+    st.success(f"✅ Connection Successful! Server time: {result}")
+except Exception as e:
+    st.error(f"❌ Connection failed: {e}")
