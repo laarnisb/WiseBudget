@@ -40,9 +40,8 @@ with tabs[1]:
         if not name or not email or not password:
             st.warning("Please fill in all fields.")
         else:
-            hashed_password = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
             try:
-                insert_user(name, email, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), hashed_password)
+                insert_user(name, email, password, datetime.now())
                 st.success("Registration successful! Please log in.")
             except ValueError as ve:
                 st.error(str(ve))
