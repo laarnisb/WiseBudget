@@ -1,6 +1,12 @@
 import streamlit as st
-from database import insert_user, get_user_by_email
-import bcrypt
+from database import insert_user
+from supabase import create_client
+import os
+
+# Initialize Supabase client
+SUPABASE_URL = st.secrets["SUPABASE_URL"]
+SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
+client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 st.set_page_config(page_title="Login / Register", page_icon="🔐")
 st.title("🔐 Login or Register")
@@ -19,13 +25,18 @@ with tabs[0]:
     login_password = st.text_input("Password", type="password", key="login_password")
 
     if st.button("Login"):
-        user = get_user_by_email(login_email)
-        if user and bcrypt.checkpw(login_password.encode("utf-8"), user["password"].encode("utf-8")):
-            st.success("Login successful!")
-            st.session_state.email = login_email
-            st.switch_page("Home.py")
-        else:
-            st.error("Invalid email or password.")
+        try:
+            auth_response = client.auth.sign_in_with_password(
+                {"email": login_email, "password": login_password}
+            )
+            if auth_response.user:
+                st.success("Login successful!")
+                st.session_state.email = login_email
+                st.switch_page("Home.py")
+            else:
+                st.error("Invalid email or password.")
+        except Exception as e:
+            st.error(f"❌ Login failed: {str(e)}")
 
 # --- Register Tab ---
 with tabs[1]:
