@@ -43,8 +43,10 @@ def insert_user(name, email, password):
         }
 
         response = client.table("users").insert(data).execute()
-
+        
         if response.data:
             return True
         else:
-            raise ValueError(f"
+            raise ValueError(f"❌ Failed to insert user: {response}")
+    except Exception as e:
+        raise ValueError(f"❌ Unexpected error: {str(e)}")
