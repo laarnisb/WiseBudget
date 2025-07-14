@@ -21,7 +21,8 @@ def test_connection():
     except Exception as e:
         return f"❌ Supabase connection error: {str(e)}"
 
-print("AUTH SESSION:", client.auth.session)
+# This assumes you're handling auth response properly after sign-up or login
+print("AUTH RESPONSE:", response)
 print("INSERTING USER:", data)
 
 def insert_user(name, email, password):
