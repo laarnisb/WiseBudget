@@ -1,48 +1,71 @@
-from supabase import create_client
-from datetime import datetime
-import os
+from sqlalchemy import create_engine, text
+from sqlalchemy.exc import IntegrityError
+import pandas as pd
+import streamlit as st
 
-# Environment variables (or hardcode securely during testing)
-SUPABASE_URL = "https://glgdvqapwjxjkxqfjpvz.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdsZ2R2cWFwd2p4amt4cWZqcHZ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTAwMTUwOTgsImV4cCI6MjA2NTU5MTA5OH0.9VyOu-eqXj3ZL3jtLGcKOFwh72sbeUa8WQ50CY-BAjA"
+DATABASE_URL = st.secrets["DATABASE_URL"]
+engine = create_engine(DATABASE_URL)
 
-client = create_client(SUPABASE_URL, SUPABASE_KEY)
-client.postgrest.schema = "public"
+def get_engine():
+    return engine
 
-def insert_user(name, email, hashed_password, registration_date):
-    """
-    Inserts a new user into the users table.
-    Password is expected as hex string.
-    """
+def test_connection():
+    with engine.connect() as conn:
+        return conn.execute(text("SELECT NOW()")).scalar()
+
+def insert_user(name, email, password_hash, registration_date):
     try:
-        result = client.table("users").insert({
-            "name": name,
-            "email": email,
-            "password": hashed_password,
-            "registration_date": registration_date.isoformat()  # Ensure correct timestamp format
-        }).execute()
-        return result
-    except Exception as e:
-        print(f"Insert error: {e}")
-        raise
+        with engine.begin() as conn:
+            conn.execute(
+                text("INSERT INTO users (name, email, password, registration_date) VALUES (:name, :email, :password, :date)"),
+                {"name": name, "email": email, "password": password_hash, "date": registration_date}
+            )
+    except IntegrityError as e:
+        if 'users_email_key' in str(e.orig):
+            raise ValueError(f"⚠️ User with email '{email}' is already registered.")
+        else:
+            raise ValueError(f"❌ Failed to register user: {str(e)}")
 
 def get_user_by_email(email):
-    """
-    Retrieves a user row from the users table by email.
-    Returns a tuple: (id, name, email, password, registration_date)
-    """
-    try:
-        result = client.table("users").select("*").eq("email", email).limit(1).execute()
-        if result.data:
-            user = result.data[0]
-            return (
-                user.get("id"),
-                user.get("name"),
-                user.get("email"),
-                user.get("password"),  # stored as hex string
-                user.get("registration_date")
+    with engine.connect() as conn:
+        result = conn.execute(text("SELECT * FROM users WHERE email = :email"), {"email": email})
+        return result.fetchone()
+
+def insert_transactions(df: pd.DataFrame, user_email: str):
+    with engine.connect() as conn:
+        result = conn.execute(text("SELECT id FROM users WHERE email = :email"), {"email": user_email})
+        user_row = result.fetchone()
+        if not user_row:
+            raise ValueError(f"User with email {user_email} not found.")
+        user_id = user_row[0]
+        df["user_id"] = user_id
+
+        for _, row in df.iterrows():
+            conn.execute(
+                text("""
+                    INSERT INTO transactions (date, description, category, amount, user_id)
+                    VALUES (:date, :description, :category, :amount, :user_id)
+                """),
+                {
+                    "date": row["date"],
+                    "description": row["description"],
+                    "category": row["category"],
+                    "amount": row["amount"],
+                    "user_id": row["user_id"]
+                }
             )
-        return None
-    except Exception as e:
-        print(f"Fetch error: {e}")
-        raise
+        conn.commit()
+
+def get_transactions_by_user(user_email: str) -> pd.DataFrame:
+    with engine.connect() as conn:
+        result = conn.execute(
+            text("""
+                SELECT t.date, t.description, t.category, t.amount
+                FROM transactions t
+                JOIN users u ON t.user_id = u.id
+                WHERE u.email = :email
+                ORDER BY t.date DESC
+            """),
+            {"email": user_email}
+        )
+        return pd.DataFrame(result.fetchall(), columns=result.keys())

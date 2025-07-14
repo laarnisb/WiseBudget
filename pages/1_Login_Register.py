@@ -1,50 +1,63 @@
 import streamlit as st
+from datetime import datetime
 import bcrypt
 from database import insert_user, get_user_by_email
-from datetime import datetime
+from supabase import create_client
 
-st.set_page_config(page_title="Login or Register", page_icon="🔐")
+# App config
+st.set_page_config(page_title="Login/Register", page_icon="🔐")
+st.title("🔐 Login or Register")
 
-tab1, tab2 = st.tabs(["Login", "Register"])
+# Trust notice and visual separation
+st.markdown("---")
+st.markdown("🔒 **Your data is private and encrypted.**")
 
-# -------------------- LOGIN --------------------
+# Supabase setup using secrets
+SUPABASE_URL = st.secrets["SUPABASE_URL"]
+SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
+client = create_client(SUPABASE_URL, SUPABASE_KEY)
+client.postgrest.schema = "public"
+
+# Session state for authentication
+if "email" not in st.session_state:
+    st.session_state.email = None
+
+# Tabs for login and registration
+tab1, tab2 = st.tabs(["🔓 Login", "📝 Register"])
+
+# ----------------- Login Tab ----------------- #
 with tab1:
-    st.header("🔑 Login")
-    email = st.text_input("Email", key="login_email")
+    st.subheader("Login to Your Account")
+    login_email = st.text_input("Email", key="login_email")
     login_password = st.text_input("Password", type="password", key="login_password")
 
     if st.button("Login"):
-        user = get_user_by_email(email)
-
+        user = get_user_by_email(login_email)
         if user:
-            stored_hash = bytes.fromhex(user[3])  # user[3] is the hashed password in hex
-            if bcrypt.checkpw(login_password.encode("utf-8"), stored_hash):
-                st.success("Login successful!")
-                st.session_state.email = email
+            hashed_pw = user["password"] if isinstance(user, dict) else user[3]
+            if bcrypt.checkpw(login_password.encode(), hashed_pw.encode()):
+                st.success("✅ Login successful!")
+                st.session_state.email = login_email
                 st.switch_page("Home.py")
             else:
-                st.error("Invalid email or password.")
+                st.error("❌ Incorrect password.")
         else:
-            st.error("Invalid email or password.")
+            st.warning("⚠️ Email not found. Please register.")
 
-# -------------------- REGISTER --------------------
+# ----------------- Register Tab ----------------- #
 with tab2:
-    st.header("📝 Register New User")
-
-    name = st.text_input("Full Name")
-    reg_email = st.text_input("Email")
-    reg_password = st.text_input("Password", type="password")
+    st.subheader("Create a New Account")
+    name = st.text_input("Full Name", key="reg_name")
+    email = st.text_input("Email", key="reg_email")
+    password = st.text_input("Password", type="password", key="reg_password")
 
     if st.button("Register"):
-        try:
-            # Check if email is already used
-            if get_user_by_email(reg_email):
-                st.warning("Email is already registered. Please log in.")
-            else:
-                hashed_password = bcrypt.hashpw(reg_password.encode("utf-8"), bcrypt.gensalt()).hex()
-                date = datetime.utcnow()
-
-                insert_user(name, reg_email, hashed_password, date)
-                st.success("Registration successful! Please log in.")
-        except Exception as e:
-            st.error(f"An unexpected error occurred during registration.\n\n{e}")
+        if not name or not email or not password:
+            st.warning("⚠️ All fields are required.")
+        else:
+            hashed_password = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+            try:
+                insert_user(name, email, hashed_password, datetime.now())
+                st.success("✅ Registration successful. You can now log in.")
+            except ValueError as e:
+                st.error(str(e))
