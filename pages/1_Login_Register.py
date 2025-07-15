@@ -20,31 +20,40 @@ st.title("🔐 Register or Login")
 tab1, tab2 = st.tabs(["Register New User", "Login"])
 
 with tab1:
+    elif choice == "Register":
     st.subheader("Register New User")
-    name = st.text_input("Full Name")
+
+    full_name = st.text_input("Full Name")
     email = st.text_input("Email")
     password = st.text_input("Password", type="password")
 
     if st.button("Register"):
-        if not name or not email or not password:
-            st.error("Please fill in all fields.")
+        if not full_name or not email or not password:
+            st.warning("Please fill in all fields.")
         else:
             try:
-                result = client.auth.sign_up(
-                    {
-                        "email": email,
-                        "password": password,
-                        "options": {
-                            "data": {
-                                "name": name,
-                            }
-                        }
-                    }
-                )
-                st.success("Registration successful! Please log in.")
-            except Exception as e:
-                st.error(f"Registration failed: {str(e)}")
+                # Step 1: Sign up to Supabase Auth
+                result = supabase.auth.sign_up({
+                    "email": email,
+                    "password": password
+                })
 
+                user = result.user
+                if user is not None:
+                    uid = user.id
+
+                    # Step 2: Insert into users table
+                    db_response = insert_user(uid, full_name, email, password)
+                    if "error" in db_response:
+                        st.error(f"Failed to insert user into database: {db_response['error']}")
+                    else:
+                        st.success("Registration successful! Please log in.")
+                else:
+                    st.error("Supabase Auth registration failed.")
+
+            except Exception as e:
+                st.error(f"Unexpected error during registration: {e}")
+    
 with tab2:
     st.subheader("Login")
     login_email = st.text_input("Email", key="login_email")
