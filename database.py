@@ -21,39 +21,26 @@ def test_connection():
     except Exception as e:
         return f"❌ Supabase connection error: {e}"
 
-def insert_user(name, email, password):
+import uuid
+from datetime import datetime
+
+def insert_user(full_name, email, password):
+    id = str(uuid.uuid4())  # Generate a unique UUID
+    registration_date = datetime.utcnow().isoformat()  # Current UTC time
+
+    data = {
+        "id": id,
+        "name": full_name,
+        "email": email,
+        "password": password,
+        "registration_date": registration_date,
+    }
+
     try:
-        # Register the user via Supabase Auth
-        auth_response = client.auth.sign_up({"email": email, "password": password})
-        if auth_response.user is None:
-            raise ValueError("❌ Failed to register user via Supabase auth.")
-
-        user_id = auth_response.user.id
-        access_token = auth_response.session.access_token
-
-        # Set client auth session so RLS policies work
-        client.auth.session = auth_response.session
-
-        # Hash the password
-        hashed_pw = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-
-        # Prepare user data
-        data = {
-            "id": user_id,
-            "name": name,
-            "email": email,
-            "password": hashed_pw,
-            "registration_date": datetime.utcnow().isoformat()
-        }
-
-        # Insert user record
-        response = client.table("users").insert(data).execute()
-        if response.data:
-            return True
-        else:
-            raise ValueError(f"❌ Failed to insert user: {response}")
+        response = supabase.table("users").insert(data).execute()
+        return response
     except Exception as e:
-        raise ValueError(f"❌ Unexpected error: {str(e)}")
+        return {"error": str(e)}
 
 def get_user_by_email(email):
     try:
