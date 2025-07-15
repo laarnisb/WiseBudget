@@ -1,47 +1,53 @@
-
 import streamlit as st
 from database import insert_user, get_user_by_email
-import bcrypt
 from datetime import datetime
+import bcrypt
 
-st.set_page_config(page_title="🔐 Login or Register", page_icon="🔐")
+st.set_page_config(page_title="Login/Register", page_icon="🔐")
 
-# Title
-st.title("🔐 Login or Register")
+# Initialize session state
+if "email" not in st.session_state:
+    st.session_state.email = None
 
-# Tabs for Login and Register
-tabs = st.tabs(["Login", "Register"])
+# -------------------- Page Title --------------------
+st.title("🔐 Login or Register")    
 
-with tabs[0]:
-    st.subheader("Login to Your Account")
+# Tabs: Login first, then Register
+tab_login, tab_register = st.tabs(["Login", "Register"])
+
+# -------------------- Login Tab --------------------
+with tab_login:
+    st.header("Login to Your Account")
+
     login_email = st.text_input("Email", key="login_email")
     login_password = st.text_input("Password", type="password", key="login_password")
 
-    if st.button("Login"):
+    if st.button("Login", key="login_button"):
         user = get_user_by_email(login_email)
         if user and bcrypt.checkpw(login_password.encode("utf-8"), user["password"].encode("utf-8")):
+            st.session_state.email = user["email"]
             st.success(f"Welcome back, {user['name']}!")
-            st.session_state.email = login_email
-            st.rerun()
         else:
             st.error("Invalid email or password.")
 
     st.info("New here? Please create an account using the **Register** tab.")
 
-with tabs[1]:
-    st.subheader("Create an Account")
-    name = st.text_input("Full Name", key="register_name")
-    email = st.text_input("Email", key="register_email")
-    password = st.text_input("Password", type="password", key="register_password")
+# -------------------- Register Tab --------------------
+with tab_register:
+    st.header("Register a New Account")
 
-    if st.button("Register"):
-        user = get_user_by_email(email)
-        if user:
-            st.info("Email is already registered. Please proceed to login.")
+    name = st.text_input("Full Name", key="register_name")
+    register_email = st.text_input("Email", key="register_email")
+    register_password = st.text_input("Password", type="password", key="register_password")
+
+    if st.button("Register", key="register_button"):
+        existing_user = get_user_by_email(register_email)
+        if existing_user:
+            st.warning("Email already registered. Please log in instead.")
         else:
-            hashed_password = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-            result = insert_user(name, email, hashed_password, datetime.utcnow().isoformat())
-            if result == "Success":
-                st.success("✅ User registered successfully! You can now login.")
+            hashed_pw = bcrypt.hashpw(register_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+            success = insert_user(name, register_email, hashed_pw, datetime.utcnow())
+            if success:
+                st.success("User registered successfully! You can now log in.")
             else:
-                st.error(f"❌ Registration failed: {result}")
+                st.error("Registration failed. Please try again.")
