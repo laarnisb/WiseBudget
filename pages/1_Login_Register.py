@@ -1,56 +1,67 @@
 import streamlit as st
-from database import insert_user, client
-from uuid import uuid4
+from database import insert_user, get_user_by_email
 from datetime import datetime
-from passlib.hash import bcrypt
+import bcrypt
 
-st.set_page_config(page_title="Register/Login", page_icon="🔐")
+st.set_page_config(page_title="🔐 Register or Login", page_icon="🔐")
 st.title("🔐 Register or Login")
 
-# Create two tabs: Register and Login
-tab_register, tab_login = st.tabs(["📝 Register", "🔐 Login"])
+# Initialize session state
+if "auth_tab" not in st.session_state:
+    st.session_state.auth_tab = "Register"
+if "prefill_email" not in st.session_state:
+    st.session_state.prefill_email = ""
+if "login_notice" not in st.session_state:
+    st.session_state.login_notice = ""
 
-# ---------------- REGISTER TAB ---------------- #
-with tab_register:
-    st.subheader("📝 Create a New Account")
-    name = st.text_input("Full Name")
-    email = st.text_input("Email")
+tabs = st.tabs(["Register", "Login"])
+
+with tabs[0]:
+    st.header("Create a New Account")
+    full_name = st.text_input("Full Name")
+    email = st.text_input("Email", key="register_email")
     password = st.text_input("Password", type="password")
 
     if st.button("Register"):
-        if name and email and password:
-            hashed_password = bcrypt.hash(password)
-            uid = str(uuid4())
-
-            result = insert_user(uid, name, email, hashed_password)
-
-            if "error" in result:
-                st.error(f"❌ Registration failed: {result['error']}")
-            else:
-                st.success("✅ Registration successful! You can now log in.")
-        else:
+        if not full_name or not email or not password:
             st.warning("Please fill in all fields.")
+        else:
+            existing_user = get_user_by_email(email)
+            if existing_user:
+                st.session_state.prefill_email = email
+                st.session_state.login_notice = "This email is already registered. Please log in instead."
+                st.session_state.auth_tab = "Login"
+                st.experimental_rerun()
+            else:
+                hashed_pw = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+                registration_date = datetime.utcnow().isoformat()
+                try:
+                    insert_user(full_name, email, hashed_pw, registration_date)
+                    st.success("✅ User registered successfully!")
+                except Exception as e:
+                    st.error(f"❌ Registration failed: {str(e)}")
 
-# ---------------- LOGIN TAB ---------------- #
-with tab_login:
-    st.subheader("🔐 Login to Your Account")
-    login_email = st.text_input("Email", key="login_email")
+with tabs[1]:
+    st.header("Login to Your Account")
+    if st.session_state.login_notice:
+        st.warning(st.session_state.login_notice)
+        st.session_state.login_notice = ""
+
+    login_email = st.text_input("Email", value=st.session_state.prefill_email, key="login_email")
     login_password = st.text_input("Password", type="password", key="login_password")
 
     if st.button("Login"):
-        if login_email and login_password:
-            try:
-                response = client.table("users").select("*").eq("email", login_email).single().execute()
-                if response.data:
-                    stored_hash = response.data["password"]
-                    if bcrypt.verify(login_password, stored_hash):
-                        st.success(f"Welcome back, {response.data['name']}!")
-                        st.session_state.email = login_email
-                    else:
-                        st.error("❌ Incorrect password.")
-                else:
-                    st.error("❌ No user found with this email.")
-            except Exception as e:
-                st.error(f"❌ Login failed: {str(e)}")
-        else:
+        if not login_email or not login_password:
             st.warning("Please enter both email and password.")
+        else:
+            user_record = get_user_by_email(login_email)
+            if user_record:
+                hashed_pw = user_record["password"]
+                if bcrypt.checkpw(login_password.encode(), hashed_pw.encode()):
+                    st.success(f"Welcome back, {user_record['name']}!")
+                    st.session_state.email = login_email
+                    st.session_state.name = user_record["name"]
+                else:
+                    st.error("Incorrect password. Please try again.")
+            else:
+                st.error("No user found with that email.")
