@@ -1,78 +1,66 @@
 import streamlit as st
-from database import insert_user
-from supabase import create_client
+from supabase import create_client, Client
+from dotenv import load_dotenv
 import os
 
+# Load environment variables
+load_dotenv()
+
+# Supabase credentials
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
 # Initialize Supabase client
-SUPABASE_URL = st.secrets["SUPABASE_URL"]
-SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
-client = create_client(SUPABASE_URL, SUPABASE_KEY)
+client: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-st.set_page_config(page_title="Login / Register", page_icon="🔐")
-st.title("🔐 Login or Register")
+st.set_page_config(page_title="Register & Login", page_icon="🔐")
+st.title("🔐 Register or Login")
 
-# Session state for login
-if "email" not in st.session_state:
-    st.session_state.email = None
+# Define tabs
+tab1, tab2 = st.tabs(["Register New User", "Login"])
 
-tabs = st.tabs(["Login", "Register"])
-
-# --- Login Tab ---
-with tabs[0]:
-    st.subheader("Login")
-
-    login_email = st.text_input("Email", key="login_email")
-    login_password = st.text_input("Password", type="password", key="login_password")
-
-    if st.button("Login"):
-        try:
-            auth_response = client.auth.sign_in_with_password(
-                {"email": login_email, "password": login_password}
-            )
-            if auth_response.user:
-                st.success("Login successful!")
-                st.session_state.email = login_email
-                st.switch_page("Home.py")
-            else:
-                st.error("Invalid email or password.")
-        except Exception as e:
-            st.error(f"❌ Login failed: {str(e)}")
-
-# --- Register Tab ---
-with tab2:
-    st.subheader("Create New Account")
-    full_name = st.text_input("Full Name")
+with tab1:
+    st.subheader("Register New User")
+    name = st.text_input("Full Name")
     email = st.text_input("Email")
     password = st.text_input("Password", type="password")
 
     if st.button("Register"):
-        if full_name and email and password:
-            try:
-                # Step 1: Sign up using Supabase Auth
-                auth_response = client.auth.sign_up({
-                    "email": email,
-                    "password": password
-                })
-
-                if auth_response.user:
-                    # Step 2: Add metadata to 'users' table
-                    from datetime import datetime
-                    import uuid
-
-                    user_id = str(uuid.uuid4())  # You can also use auth_response.user.id if preferred
-                    registration_date = datetime.utcnow().isoformat()
-
-                    insert_response = client.table("users").insert({
-                        "id": user_id,
-                        "name": full_name,
-                        "email": email,
-                        "registration_date": registration_date
-                    }).execute()
-
-                    st.success("✅ Registration successful! Please check your email to confirm your account.")
-                else:
-                    st.error("❌ Failed to register. Check your email/password or try again.")
-            except Exception as e:
-                st.error(f"❌ Error: {str(e)}")
+        if not name or not email or not password:
+            st.error("Please fill in all fields.")
         else:
-            st.warning("⚠️ Please fill in all fields.")
+            try:
+                result = client.auth.sign_up(
+                    {
+                        "email": email,
+                        "password": password,
+                        "options": {
+                            "data": {
+                                "name": name,
+                            }
+                        }
+                    }
+                )
+                st.success("Registration successful! Please log in.")
+            except Exception as e:
+                st.error(f"Registration failed: {str(e)}")
+
+with tab2:
+    st.subheader("Login")
+    login_email = st.text_input("Email", key="login_email")
+    login_password = st.text_input("Password", type="password", key="login_password")
+
+    if st.button("Login"):
+        if not login_email or not login_password:
+            st.error("Please enter both email and password.")
+        else:
+            try:
+                user = client.auth.sign_in_with_password({
+                    "email": login_email,
+                    "password": login_password
+                })
+                st.session_state["email"] = login_email
+                st.success("Login successful!")
+                st.experimental_rerun()
+            except Exception as e:
+                st.error("Login failed: Invalid login credentials")
