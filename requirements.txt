@@ -12,3 +12,4 @@ bleach
 python-dotenv
 bcrypt
 supabase==1.0.3
+passlib==1.7.4
