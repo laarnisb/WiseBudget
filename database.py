@@ -32,3 +32,10 @@ def authenticate_user(email, password):
         return response
     except Exception as e:
         return {"error": str(e)}
+
+def test_connection():
+    try:
+        result = supabase.table("users").select("*").limit(1).execute()
+        return "✅ Supabase connected!" if result.data is not None else "⚠️ Connected, but no data found."
+    except Exception as e:
+        return f"❌ Connection failed: {e}"
