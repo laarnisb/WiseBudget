@@ -7,12 +7,12 @@ load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def insert_user(uid, name, email, password):
     registration_date = datetime.utcnow().isoformat()
     try:
-        response = supabase.table("users").insert({
+        response = client.table("users").insert({
             "id": uid,
             "name": name,
             "email": email,
@@ -25,7 +25,7 @@ def insert_user(uid, name, email, password):
 
 def authenticate_user(email, password):
     try:
-        response = supabase.auth.sign_in_with_password({
+        response = client.auth.sign_in_with_password({
             "email": email,
             "password": password
         })
@@ -35,7 +35,10 @@ def authenticate_user(email, password):
 
 def test_connection():
     try:
-        result = supabase.table("users").select("*").limit(1).execute()
-        return "✅ Supabase connected!" if result.data is not None else "⚠️ Connected, but no data found."
+        response = client.table("users").select("*").limit(1).execute()
+        if response.data:
+            return "✅ Supabase connected successfully!"
+        else:
+            return "⚠️ Supabase connected but no data found."
     except Exception as e:
         return f"❌ Connection failed: {e}"
