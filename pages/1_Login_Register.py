@@ -1,21 +1,23 @@
-# pages/1_Login_Register.py
-
 import streamlit as st
 from database import insert_user
 from supabase import create_client
 from datetime import datetime
 import os
+from passlib.hash import bcrypt
 
+# Page configuration
 st.set_page_config(page_title="🔐 Login & Register", page_icon="🔐")
 st.title("🔐 Login or Register")
 
-# Supabase client
-url = os.environ.get("SUPABASE_URL")
-key = os.environ.get("SUPABASE_KEY")
-client = create_client(url, key)
+# Initialize Supabase client
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+# Option selector
 option = st.selectbox("Choose an option", ["Register", "Login"])
 
+# Registration logic
 if option == "Register":
     name = st.text_input("Full Name")
     email = st.text_input("Email")
@@ -45,22 +47,28 @@ if option == "Register":
             except Exception as e:
                 st.error(f"❌ Registration error: {e}")
 
-elif option == "Login":
-    email = st.text_input("Email")
-    password = st.text_input("Password", type="password")
+# Login logic
+elif page == "Login":
+    st.subheader("🔐 Login to Your Account")
+    login_email = st.text_input("Email", key="login_email")
+    login_password = st.text_input("Password", type="password", key="login_password")
 
     if st.button("Login"):
-        try:
-            result = client.auth.sign_in_with_password({
-                "email": email,
-                "password": password
-            })
-
-            if result.user:
-                st.success(f"✅ Logged in as {email}")
-                st.session_state["email"] = email
-            else:
-                st.error("❌ Login failed.")
-
-        except Exception as e:
-            st.error(f"❌ Login error: {e}")
+        if login_email and login_password:
+            try:
+                # Fetch user record by email
+                response = client.table("users").select("*").eq("email", login_email).single().execute()
+                if response.data:
+                    stored_hash = response.data["password"]
+                    # Compare hashed password
+                    if bcrypt.verify(login_password, stored_hash):
+                        st.success(f"Welcome back, {response.data['name']}!")
+                        st.session_state.email = login_email
+                    else:
+                        st.error("❌ Incorrect password.")
+                else:
+                    st.error("❌ No user found with this email.")
+            except Exception as e:
+                st.error(f"❌ Login failed: {str(e)}")
+        else:
+            st.warning("Please enter both email and password.")
