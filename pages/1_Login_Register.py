@@ -32,18 +32,18 @@ if option == "Register":
                 })
 
                 if result.user:
-                    uid = result.user.id  # ✅ Supabase UID needed for RLS
+                    uid = result.user.id
                     response = insert_user(uid, name, email, password)
 
                     if "error" in response:
                         st.error(f"DB insert failed: {response['error']}")
                     else:
-                        st.success("User registered successfully!")
+                        st.success("✅ User registered successfully!")
                 else:
-                    st.error("Registration failed. No user object returned.")
+                    st.error("❌ Registration failed. No user object returned.")
 
             except Exception as e:
-                st.error(f"Registration error: {e}")
+                st.error(f"❌ Registration error: {e}")
 
 elif option == "Login":
     email = st.text_input("Email")
@@ -57,10 +57,10 @@ elif option == "Login":
             })
 
             if result.user:
-                st.success(f"Logged in as {email}")
+                st.success(f"✅ Logged in as {email}")
                 st.session_state["email"] = email
             else:
-                st.error("Login failed.")
+                st.error("❌ Login failed.")
 
         except Exception as e:
-            st.error(f"Login error: {e}")
+            st.error(f"❌ Login error: {e}")
