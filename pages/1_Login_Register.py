@@ -3,6 +3,7 @@ from database import insert_user, get_user_by_email
 from datetime import datetime
 import bcrypt
 
+# Page setup
 st.set_page_config(page_title="🔐 Register or Login", page_icon="🔐")
 st.title("🔐 Register or Login")
 
@@ -14,8 +15,10 @@ if "prefill_email" not in st.session_state:
 if "login_notice" not in st.session_state:
     st.session_state.login_notice = ""
 
+# Display two tabs: Register and Login
 tabs = st.tabs(["Register", "Login"])
 
+# Register tab
 with tabs[0]:
     st.header("Create a New Account")
     full_name = st.text_input("Full Name")
@@ -28,6 +31,7 @@ with tabs[0]:
         else:
             existing_user = get_user_by_email(email)
             if existing_user:
+                # Email already exists: Redirect to login tab
                 st.session_state.prefill_email = email
                 st.session_state.login_notice = "This email is already registered. Please log in instead."
                 st.session_state.auth_tab = "Login"
@@ -41,6 +45,7 @@ with tabs[0]:
                 except Exception as e:
                     st.error(f"❌ Registration failed: {str(e)}")
 
+# Login tab
 with tabs[1]:
     st.header("Login to Your Account")
     if st.session_state.login_notice:
