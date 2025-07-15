@@ -39,19 +39,40 @@ with tabs[0]:
             st.error(f"❌ Login failed: {str(e)}")
 
 # --- Register Tab ---
-with tabs[1]:
-    st.subheader("Register New User")
-
-    name = st.text_input("Full Name", key="register_name")
-    email = st.text_input("Email", key="register_email")
-    password = st.text_input("Password", type="password", key="register_password")
+with tab2:
+    st.subheader("Create New Account")
+    full_name = st.text_input("Full Name")
+    email = st.text_input("Email")
+    password = st.text_input("Password", type="password")
 
     if st.button("Register"):
-        if not name or not email or not password:
-            st.warning("Please fill in all fields.")
-        else:
+        if full_name and email and password:
             try:
-                insert_user(name, email, password)
-                st.success("Registration successful! Please log in.")
-            except ValueError as ve:
-                st.error(str(ve))
+                # Step 1: Sign up using Supabase Auth
+                auth_response = client.auth.sign_up({
+                    "email": email,
+                    "password": password
+                })
+
+                if auth_response.user:
+                    # Step 2: Add metadata to 'users' table
+                    from datetime import datetime
+                    import uuid
+
+                    user_id = str(uuid.uuid4())  # You can also use auth_response.user.id if preferred
+                    registration_date = datetime.utcnow().isoformat()
+
+                    insert_response = client.table("users").insert({
+                        "id": user_id,
+                        "name": full_name,
+                        "email": email,
+                        "registration_date": registration_date
+                    }).execute()
+
+                    st.success("✅ Registration successful! Please check your email to confirm your account.")
+                else:
+                    st.error("❌ Failed to register. Check your email/password or try again.")
+            except Exception as e:
+                st.error(f"❌ Error: {str(e)}")
+        else:
+            st.warning("⚠️ Please fill in all fields.")
