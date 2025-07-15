@@ -1,56 +1,66 @@
+# pages/1_Login_Register.py
+
 import streamlit as st
-from database import insert_user, authenticate_user
+from database import insert_user
 from supabase import create_client
+from datetime import datetime
 import os
-from dotenv import load_dotenv
 
-load_dotenv()
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+st.set_page_config(page_title="🔐 Login & Register", page_icon="🔐")
+st.title("🔐 Login or Register")
 
-st.set_page_config(page_title="Register/Login", page_icon="🔐")
-tab1, tab2 = st.tabs(["Register", "Login"])
+# Supabase client
+url = os.environ.get("SUPABASE_URL")
+key = os.environ.get("SUPABASE_KEY")
+client = create_client(url, key)
 
-with tab1:
-    st.header("Register New User")
-    full_name = st.text_input("Full Name")
+option = st.selectbox("Choose an option", ["Register", "Login"])
+
+if option == "Register":
+    name = st.text_input("Full Name")
     email = st.text_input("Email")
     password = st.text_input("Password", type="password")
 
     if st.button("Register"):
-        if not full_name or not email or not password:
-            st.warning("Please complete all fields.")
+        if not name or not email or not password:
+            st.warning("Please fill in all fields.")
         else:
             try:
-                result = supabase.auth.sign_up({
+                result = client.auth.sign_up({
                     "email": email,
                     "password": password
                 })
-                user = result.user
-                if user:
-                    uid = user.id
-                    db_response = insert_user(uid, full_name, email, password)
-                    if "error" in db_response:
-                        st.error(f"DB insert failed: {db_response['error']}")
-                    else:
-                        st.success("Registration successful. Please log in.")
-                else:
-                    st.error("Registration via Supabase failed.")
-            except Exception as e:
-                st.error(f"Error: {e}")
 
-with tab2:
-    st.header("Login")
-    login_email = st.text_input("Email", key="login_email")
-    login_password = st.text_input("Password", type="password", key="login_password")
+                if result.user:
+                    uid = result.user.id  # ✅ Supabase UID needed for RLS
+                    response = insert_user(uid, name, email, password)
+
+                    if "error" in response:
+                        st.error(f"DB insert failed: {response['error']}")
+                    else:
+                        st.success("User registered successfully!")
+                else:
+                    st.error("Registration failed. No user object returned.")
+
+            except Exception as e:
+                st.error(f"Registration error: {e}")
+
+elif option == "Login":
+    email = st.text_input("Email")
+    password = st.text_input("Password", type="password")
 
     if st.button("Login"):
-        if not login_email or not login_password:
-            st.warning("Please enter your email and password.")
-        else:
-            response = authenticate_user(login_email, login_password)
-            if "error" in response:
-                st.error("Login failed.")
+        try:
+            result = client.auth.sign_in_with_password({
+                "email": email,
+                "password": password
+            })
+
+            if result.user:
+                st.success(f"Logged in as {email}")
+                st.session_state["email"] = email
             else:
-                st.success("Login successful.")
+                st.error("Login failed.")
+
+        except Exception as e:
+            st.error(f"Login error: {e}")
