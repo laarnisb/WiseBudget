@@ -1,44 +1,37 @@
+
 import streamlit as st
 import pandas as pd
+import time
 from database import insert_transactions
-from security_utils import sanitize_input
+from utils import get_user_id_by_email
+from st_files_connection import FilesConnection
 
-st.set_page_config(page_title="Upload Transactions", page_icon="📤")
-st.title("📤 Upload Your Transactions")
+st.set_page_config(page_title="📤 Upload Transactions", page_icon="📤")
+st.title("📤 Upload Transactions")
 
-if "email" not in st.session_state or not st.session_state.email:
-    st.warning("Please enter your email on the Home page.")
+if "email" not in st.session_state:
+    st.warning("Please log in first.")
     st.stop()
 
-email = st.session_state.email
-uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
+email = st.session_state["email"]
+user_id = get_user_id_by_email(email)
 
-if uploaded_file:
-    try:
-        df = pd.read_csv(uploaded_file)
+uploaded_file = st.file_uploader("Choose a CSV file to upload", type="csv")
 
-        required_columns = {"description", "category", "amount", "date"}
-        if not required_columns.issubset(df.columns):
-            st.error("❌ The uploaded file must contain the following columns: description, category, amount, date")
-        else:
-            df["category"] = df["category"].astype(str).str.strip().str.lower().apply(sanitize_input)
-            df["description"] = df["description"].astype(str).apply(sanitize_input)
+if uploaded_file is not None:
+    df = pd.read_csv(uploaded_file)
 
-            # Clean and validate input
-            df = df[df["category"].str.strip().astype(bool)]
-            df = df[df["description"].str.strip().astype(bool)]
+    if {"description", "category", "amount", "date"}.issubset(df.columns):
+        df["user_id"] = user_id
+        df["email"] = email
 
-            # Limit length
-            MAX_LENGTH = 100
-            df["description"] = df["description"].str.slice(0, MAX_LENGTH)
-            df["category"] = df["category"].str.slice(0, MAX_LENGTH)
+        result = insert_transactions(df)
 
-            if df.empty:
-                st.warning("🚫 No valid transactions to upload after cleaning.")
-                st.stop()
-
-            insert_transactions(df, email)
+        if "error" not in result:
             st.success("✅ Transactions uploaded successfully!")
-
-    except Exception as e:
-        st.error(f"❌ Error uploading transactions: {e}")
+            time.sleep(2)
+            st.switch_page("pages/3_View_Transactions.py")
+        else:
+            st.error(f"❌ Failed to insert transactions: {result['error']}")
+    else:
+        st.error("❌ CSV must contain 'description', 'category', 'amount', and 'date' columns.")
