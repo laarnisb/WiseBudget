@@ -20,11 +20,6 @@ if "name" not in st.session_state:
 if st.session_state.email:
     st.sidebar.success(f"Welcome, {st.session_state.name}!")
 
-# Show sidebar message after rerun
-if st.session_state.get("just_logged_in"):
-    st.info("Use the sidebar to navigate through the app.")
-    del st.session_state["just_logged_in"]  # Clean up the flag
-
 # Tabs: Login first, then Register
 tab_login, tab_register = st.tabs(["Login", "Register"])
 
@@ -47,7 +42,12 @@ with tab_login:
             st.info("Use the sidebar to navigate through the app.")
         else:
             st.error("Invalid email or password.")
-    
+
+# -------------------- End of Page --------------------
+if st.session_state.get("just_logged_in"):
+    st.info("Use the sidebar to navigate through the app.")
+    del st.session_state["just_logged_in"]
+   
 # -------------------- Register Tab --------------------
 with tab_register:
     st.header("Register a New Account")
