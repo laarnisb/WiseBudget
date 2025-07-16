@@ -36,9 +36,9 @@ with tab_login:
             st.session_state.email = user["email"]
             st.session_state.name = user["name"]
             st.success(f"Welcome back, {user['name']}! 👋")
+            st.info("Use the sidebar to navigate through the app.")
             time.sleep(2.5)
             st.rerun()
-            st.info("Use the sidebar to navigate through the app.")
         else:
             st.error("Invalid email or password.")
  
