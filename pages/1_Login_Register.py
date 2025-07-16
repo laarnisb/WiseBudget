@@ -22,9 +22,8 @@ if st.session_state.email:
 tab_login, tab_register = st.tabs(["Login", "Register"])
 
 # -------------------- Login Tab --------------------
-if tab == "Login":
+with tab_login:
     st.subheader("Login to Your Account")
-
     st.info("New here? Please create an account using the **Register** tab.")
 
     email = st.text_input("Email", key="login_email")
@@ -47,7 +46,7 @@ if tab == "Login":
             st.error("Invalid email or password. Please try again.")
 
 # -------------------- Register Tab --------------------
-elif tab == "📝 Register":
+with tab_register:
     st.subheader("📝 Create a New Account")
 
     name = st.text_input("Full Name", key="register_name")
@@ -59,7 +58,7 @@ elif tab == "📝 Register":
             st.error("An account with this email already exists. Please log in instead.")
         else:
             hashed_pw = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-            success = insert_user(name, email, hashed_pw)
+            success = insert_user(name, email, hashed_pw, datetime.utcnow())
             if success:
                 # Auto-clear fields after registration
                 st.session_state["register_name"] = ""
