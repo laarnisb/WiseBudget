@@ -39,11 +39,19 @@ def get_user_by_email(email):
     except Exception as e:
         return {"error": str(e)}
 
-# Placeholder insert_transactions function
-def insert_transactions(data):
+# Insert multiple transactions into the 'transactions' table
+def insert_transactions(transactions):
     try:
-        response = client.table("transactions").insert(data).execute()
+        response = client.table("transactions").insert(transactions).execute()
         return response
+    except Exception as e:
+        return {"error": str(e)}
+
+# Get all transactions for a specific user by email
+def get_transactions_by_email(email):
+    try:
+        response = client.table("transactions").select("*").eq("user_email", email).order("date", desc=False).execute()
+        return response.data
     except Exception as e:
         return {"error": str(e)}
 
