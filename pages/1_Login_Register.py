@@ -33,16 +33,21 @@ with tab_login:
 
     if st.button("Login", key="login_button"):
         user = get_user_by_email(login_email)
-        if user and bcrypt.checkpw(login_password.encode("utf-8"), user["password"].encode("utf-8")):
-            st.session_state.email = user["email"]
-            st.session_state.name = user["name"]
-            st.session_state.just_logged_in = True  # Set flag
-            time.sleep(2.5)
-            st.rerun()
-            st.info("Use the sidebar to navigate through the app.")
+        # Check if user is valid and has a password field
+        if isinstance(user, dict) and "password" in user:
+            if bcrypt.checkpw(login_password.encode("utf-8"), user["password"].encode("utf-8")):
+                st.session_state.email = user["email"]
+                st.session_state.name = user["name"]
+                st.session_state.just_logged_in = True
+                time.sleep(2.5)
+                st.rerun()
+            else:
+                st.error("Invalid email or password.")
+        elif isinstance(user, dict) and "error" in user:
+            st.error(f"Login failed: {user['error']}")
         else:
-            st.error("Invalid email or password.")
-
+            st.error("User not found or data error.")
+                       
 # -------------------- End of Page --------------------
 if st.session_state.get("just_logged_in"):
     st.info("Use the sidebar to navigate through the app.")
