@@ -1,42 +1,52 @@
 import streamlit as st
 import pandas as pd
-from sqlalchemy import text
-from database import get_engine
+import matplotlib.pyplot as plt
+from database import get_transactions_by_user
 
-st.set_page_config(page_title="Budget Insights", layout="wide")
+st.set_page_config(page_title="Budget Insights", page_icon="📊")
 st.title("📊 Budget Insights")
 
-# Ensure session-based email is available
+# Require login
 if "email" not in st.session_state or not st.session_state.email:
-    st.warning("Please enter your email on the Home page.")
+    st.warning("Please log in to view budget insights.")
     st.stop()
 
-email = st.session_state.email
-engine = get_engine()
+# Fetch transactions
+user_email = st.session_state.email
+transactions = get_transactions_by_user(user_email)
 
-try:
-    with engine.connect() as conn:
-        query = text("""
-            SELECT t.amount, t.category
-            FROM transactions t
-            JOIN users u ON t.user_id = u.id
-            WHERE u.email = :email
-        """)
-        result = conn.execute(query, {"email": email})
-        data = pd.DataFrame(result.fetchall(), columns=result.keys())
+if not transactions:
+    st.info("No transactions found.")
+    st.stop()
 
-    if data.empty:
-        st.info("No transactions found for this user.")
-    else:
-        # Summarize spending by category
-        summary = data.groupby("category")["amount"].sum().reset_index()
-        summary.columns = ["Category", "Total Amount"]
+# Create DataFrame
+df = pd.DataFrame(transactions)
+df["date"] = pd.to_datetime(df["date"]).dt.date
+df["amount"] = pd.to_numeric(df["amount"], errors="coerce")
+df["category"] = df["category"].str.title()
 
-        st.subheader("💡 Spending by Category")
-        st.dataframe(summary)
+# Group by category
+category_summary = df.groupby("category")["amount"].sum().sort_values(ascending=False)
 
-        st.subheader("📊 Spending Breakdown")
-        st.bar_chart(summary.set_index("Category"))
+# Display summary
+st.subheader("💡 Spending Summary by Category")
+st.dataframe(category_summary.reset_index(), use_container_width=True)
 
-except Exception as e:
-    st.error(f"❌ Error loading insights: {e}")
+# Pie chart
+fig1, ax1 = plt.subplots()
+ax1.pie(category_summary, labels=category_summary.index, autopct='%1.1f%%', startangle=90)
+ax1.axis('equal')
+st.pyplot(fig1)
+
+# Bar chart
+st.subheader("📈 Spending Distribution")
+fig2, ax2 = plt.subplots()
+category_summary.plot(kind="bar", ax=ax2, color="skyblue")
+ax2.set_ylabel("Amount ($)")
+ax2.set_title("Spending per Category")
+st.pyplot(fig2)
+
+# Optional feedback
+top_category = category_summary.idxmax()
+top_spent = category_summary.max()
+st.success(f"✅ You spent the most on **{top_category}**, totaling **${top_spent:.2f}**.")
