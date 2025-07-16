@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from database import insert_transactions, get_user_id_by_email
+from database import insert_transactions, get_user_by_email
 
 st.set_page_config(page_title="📤 Upload Transactions", page_icon="📤")
 st.title("📤 Upload Your Transactions")
@@ -35,7 +35,7 @@ if uploaded_file:
             st.error("CSV must contain columns: date, description, amount, category.")
         else:
             user_email = st.session_state.email
-            user_id = get_user_id_by_email(user_email)
+            user_id = get_user_by_email(user_email)
 
             if user_id:
                 df["user_id"] = user_id
