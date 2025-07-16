@@ -26,7 +26,7 @@ def insert_user(name: str, email: str, password: str, created_at: datetime) -> b
         print(f"Error inserting user: {e}")
         return False
 
-def get_user_by_email(email):
+def get_user_id_by_email(email):
     try:
         response = client.table("users").select("*").eq("email", email).single().execute()
         if response.data:
