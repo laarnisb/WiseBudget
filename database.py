@@ -104,6 +104,20 @@ def fetch_budget_goals_by_user(user_id):
         print("Error fetching budget goals:", e)
         return []
 
+def insert_budget_goal(user_id, income, needs_percent, wants_percent, savings_percent):
+    try:
+        response = supabase.table("budget_goals").insert({
+            "user_id": user_id,
+            "income": income,
+            "needs_percent": needs_percent,
+            "wants_percent": wants_percent,
+            "savings_percent": savings_percent
+        }).execute()
+        return True if response.data else False
+    except Exception as e:
+        print("Error inserting budget goal:", e)
+        return False
+
 # Test Supabase connection
 def test_connection():
     try:
