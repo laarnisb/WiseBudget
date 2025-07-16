@@ -11,7 +11,7 @@ st.title("📊 Track Budget Progress")
 email = get_current_user_email()
 
 if not email:
-    st.warning("Please enter your email on the Home page.")
+    st.warning("Please log in to track your budget progress.")
     st.stop()
 
 try:
