@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import time
@@ -9,6 +8,7 @@ from st_files_connection import FilesConnection
 st.set_page_config(page_title="📤 Upload Transactions", page_icon="📤")
 st.title("📤 Upload Transactions")
 
+# Check if user is logged in
 if "email" not in st.session_state:
     st.warning("Please log in first.")
     st.stop()
@@ -16,12 +16,15 @@ if "email" not in st.session_state:
 email = st.session_state["email"]
 user_id = get_user_id_by_email(email)
 
+# File uploader
 uploaded_file = st.file_uploader("Choose a CSV file to upload", type="csv")
 
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
 
-    if {"description", "category", "amount", "date"}.issubset(df.columns):
+    # Check required columns
+    required_columns = {"description", "category", "amount", "date"}
+    if required_columns.issubset(df.columns):
         df["user_id"] = user_id
         df["email"] = email
 
@@ -29,8 +32,7 @@ if uploaded_file is not None:
 
         if "error" not in result:
             st.success("✅ Transactions uploaded successfully!")
-            time.sleep(2)
-            st.switch_page("pages/3_View_Transactions.py")
+            st.info("You can now view them in the '📄 View Transactions' section from the sidebar.")
         else:
             st.error(f"❌ Failed to insert transactions: {result['error']}")
     else:
