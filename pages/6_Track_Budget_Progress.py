@@ -1,75 +1,88 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
-from database import get_user_by_email, fetch_transactions_by_user, fetch_budget_goals_by_user
+from utils import get_user_id_by_email
+from database import fetch_transactions_by_user, fetch_budget_goals_by_user
 
 st.set_page_config(page_title="📊 Track Budget Progress", page_icon="📊")
 st.title("📊 Track Budget Progress")
 
-# Retrieve user email from session
-if "email" not in st.session_state:
-    st.warning("⚠️ Please log in to track your budget progress.")
+user_email = st.session_state.get("email")
+if not user_email:
+    st.warning("⚠️ Please log in first to view your budget progress.")
     st.stop()
 
-user_email = st.session_state["email"]
-user = get_user_by_email(user_email)
-
-if user is None:
+# Get user ID
+user_id = get_user_id_by_email(user_email)
+if not user_id:
     st.error("User not found.")
     st.stop()
 
-user_id = user["id"]
+# Fetch transactions
+transactions = fetch_transactions_by_user(user_id)
+if not transactions:
+    st.warning("No transactions found.")
+    st.stop()
+
+# Convert to DataFrame
+df = pd.DataFrame(transactions)
+df["date"] = pd.to_datetime(df["date"])
+df["month"] = df["date"].dt.to_period("M")
+
+# Let user select a month
+months = df["month"].unique().tolist()
+selected_month = st.selectbox("Select a month", sorted(months, reverse=True))
+
+# Filter for selected month
+monthly_df = df[df["month"] == selected_month]
+
+# Exclude 'Income' category from tracking
+monthly_df = monthly_df[monthly_df["category"] != "Income"]
+
+# Group and summarize actual spending
+category_totals = monthly_df.groupby("category")["amount"].sum().to_dict()
+
+# Fetch budget goals
+budget_goals = fetch_budget_goals_by_user(user_id)
+
+if not budget_goals:
+    st.warning("No budget goals found. Please set your 50/30/20 goals first.")
+    st.stop()
 
 try:
-    # Fetch transactions and budget goals
-    transactions = fetch_transactions_by_user(user_id)
-    goals = fetch_budget_goals_by_user(user_id)
+    needs_percent = float(budget_goals["needs_percent"])
+    wants_percent = float(budget_goals["wants_percent"])
+    savings_percent = float(budget_goals["savings_percent"])
+    income = float(budget_goals["income"])
+except (KeyError, TypeError, ValueError) as e:
+    st.error(f"Invalid budget goal data: {e}")
+    st.stop()
 
-    if not transactions:
-        st.warning("No transactions found for this user.")
-        st.stop()
+# Compute budget targets
+budget_targets = {
+    "Needs": income * needs_percent / 100,
+    "Wants": income * wants_percent / 100,
+    "Savings": income * savings_percent / 100
+}
 
-    if not goals:
-        st.warning("No budget goals set yet. Please set goals first.")
-        st.stop()
+# Prepare summary
+summary_data = []
+for category, budget in budget_targets.items():
+    actual = category_totals.get(category, 0.0)
+    difference = actual - budget
+    summary_data.append({
+        "Category": category,
+        "Budgeted": budget,
+        "Actual": actual,
+        "Difference": difference
+    })
 
-    df = pd.DataFrame(transactions)
-    df = df[df["category"] != "Income"]  # Exclude Income
+summary_df = pd.DataFrame(summary_data)
 
-    # Calculate totals
-    category_totals = df.groupby("category")["amount"].sum()
-    total_spent = category_totals.sum()
+st.subheader(f"Summary for {selected_month}")
+st.dataframe(summary_df.style.format({
+    "Budgeted": "${:,.2f}",
+    "Actual": "${:,.2f}",
+    "Difference": "${:,.2f}"
+}))
 
-    # Prepare goals lookup
-    goals_dict = {item["category"]: item["budget_amount"] for item in goals}
-
-    # Prepare comparison table
-    comparison_data = []
-    for category, spent in category_totals.items():
-        goal = goals_dict.get(category, 0)
-        status = "✅ On Track" if spent <= goal else "⚠️ Over Budget"
-        comparison_data.append({
-            "Category": category,
-            "Spent": spent,
-            "Budget Goal": goal,
-            "Status": status
-        })
-
-    comparison_df = pd.DataFrame(comparison_data)
-
-    # Show comparison table
-    st.subheader("📋 Budget Comparison")
-    st.dataframe(comparison_df, use_container_width=True)
-
-    # Plot
-    st.subheader("📊 Budget Utilization by Category")
-    fig, ax = plt.subplots()
-    ax.bar(comparison_df["Category"], comparison_df["Spent"], label="Spent", alpha=0.7)
-    ax.bar(comparison_df["Category"], comparison_df["Budget Goal"], label="Goal", alpha=0.7)
-    ax.set_ylabel("Amount ($)")
-    ax.set_title("Spending vs Budget Goals")
-    ax.legend()
-    st.pyplot(fig)
-
-except Exception as e:
-    st.error(f"❌ Failed to track budget progress: {str(e)}")
+st.caption("Use the sidebar to navigate through the app.")
