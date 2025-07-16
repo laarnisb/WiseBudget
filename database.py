@@ -105,7 +105,9 @@ def fetch_budget_goals_by_user(user_id):
             .order("created_at", desc=True) \
             .limit(1) \
             .execute()
-        return response.data[0] if response.data else None
+        if response.data:
+            return response.data[0]  # single dict
+        return None
     except Exception as e:
         print("Error fetching budget goals:", e)
         return None
