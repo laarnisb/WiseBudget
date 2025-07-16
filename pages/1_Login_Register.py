@@ -6,10 +6,7 @@ import uuid
 
 st.set_page_config(page_title="Login/Register", page_icon="🔐")
 
-if "email" in st.session_state and st.session_state.email:
-    st.sidebar.success(f"👋 Welcome, {st.session_state.name}!")
-
-# -------------------- Page Title --------------------
+# -------------------- Page Title -------------------
 st.title("🔐 Login or Register")
 
 # Initialize session state
@@ -20,7 +17,7 @@ if "name" not in st.session_state:
 
 # Display sidebar message if logged in
 if st.session_state.email:
-    st.sidebar.success(f"👋 Welcome, {st.session_state.name}!")
+    st.sidebar.success(f"Welcome, {st.session_state.name}!")
 
 # Tabs: Login first, then Register
 tab_login, tab_register = st.tabs(["Login", "Register"])
