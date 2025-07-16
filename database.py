@@ -66,6 +66,44 @@ def get_transactions_by_user(email):
         print("Error getting transactions:", e)
         return []
 
+def get_budget_goals(user_id: str, created_at: str = None):
+    try:
+        query = supabase.table("budget_goals").select("*").eq("user_id", user_id)
+        if created_at:
+            query = query.eq("created_at", created_at)
+        response = query.order("created_at", desc=True).limit(1).execute()
+
+        if response.data:
+            return response.data[0]
+        else:
+            return None
+    except Exception as e:
+        print("Error fetching budget goals:", e)
+        return None
+
+def fetch_transactions_by_month(user_id, month_str):
+    try:
+        response = supabase.table("transactions") \
+            .select("*") \
+            .eq("user_id", user_id) \
+            .ilike("date", f"{month_str}-%") \
+            .execute()
+        return pd.DataFrame(response.data) if response.data else pd.DataFrame()
+    except Exception as e:
+        print("Error fetching monthly transactions:", e)
+        return pd.DataFrame()
+
+def fetch_budget_goals_by_user(user_id):
+    try:
+        response = supabase.table("budget_goals") \
+            .select("category, budget_amount") \
+            .eq("user_id", user_id) \
+            .execute()
+        return response.data if response.data else []
+    except Exception as e:
+        print("Error fetching budget goals:", e)
+        return []
+
 # Test Supabase connection
 def test_connection():
     try:
