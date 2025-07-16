@@ -27,8 +27,11 @@ with tab_login:
         user = get_user_by_email(login_email)
         if user and bcrypt.checkpw(login_password.encode("utf-8"), user["password"].encode("utf-8")):
             st.session_state.email = user["email"]
+            st.session_state.user_name = user["name"]
             st.success(f"Welcome back, {user['name']}!")
-            st.experimental_rerun()  # rerun to trigger redirect
+            st.switch_page("pages/3_View_Transactions.py")
+        else:
+            st.error("Invalid email or password.")
 
 # -------------------- Register Tab --------------------
 with tab_register:
@@ -49,7 +52,3 @@ with tab_register:
                 st.success("User registered successfully! You can now log in.")
             else:
                 st.error("Registration failed. Please try again.")
-
-# Redirect if logged in
-if st.session_state.email:
-    st.switch_page("pages/3_View_Transactions.py")
