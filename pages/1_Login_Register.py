@@ -37,9 +37,10 @@ with tab_login:
             st.session_state.name = user["name"]
             st.success(f"Welcome back, {user['name']}! 👋")
             st.info("Use the sidebar to navigate through the app.")
+            st.experimental_rerun
         else:
             st.error("Invalid email or password.")
-
+ 
 # -------------------- Register Tab --------------------
 with tab_register:
     st.header("Register a New Account")
