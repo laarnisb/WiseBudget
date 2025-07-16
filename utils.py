@@ -1,5 +1,6 @@
 import streamlit as st
 import hashlib
+from database import get_user_by_email
 
 def get_current_user_email():
     """Returns the current logged-in user's email from session state."""
@@ -18,3 +19,7 @@ def require_login():
         st.warning("⚠️ Please log in to access this page.")
         st.stop()
     return st.session_state["email"]
+
+def get_user_id_by_email(email):
+    user = get_user_by_email(email)
+    return user["id"] if user else None
