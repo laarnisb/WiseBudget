@@ -52,3 +52,27 @@ else:
 
         except Exception as e:
             st.error(f"Failed to fetch budget insights: {e}")
+
+# Filter out Income for pie chart
+pie_data = monthly_summary[monthly_summary["category"] != "Income"]
+category_totals = pie_data.groupby("category")["amount"].sum()
+
+# Plot pie chart
+fig_pie, ax_pie = plt.subplots()
+ax_pie.pie(
+    category_totals,
+    labels=category_totals.index,
+    autopct="%1.1f%%",
+    startangle=140,
+    wedgeprops={'linewidth': 1, 'edgecolor': 'white'}
+)
+ax_pie.set_title("Spending Distribution by Category (excluding Income)", fontsize=12)
+st.pyplot(fig_pie)
+
+# Insight message based on top spending category
+top_category = category_totals.idxmax()
+top_amount = category_totals.max()
+
+st.info(
+    f"💡 Insight: You spent the most on **{top_category}**, totaling **${top_amount:.2f}** for the month."
+)
