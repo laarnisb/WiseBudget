@@ -1,16 +1,16 @@
 import streamlit as st
 import pandas as pd
 from database import get_transactions_by_user
-from utils import get_current_user_email
 from security_utils import escape_output
 
 st.set_page_config(page_title="View Transactions", page_icon="📄")
 st.title("📄 View Transactions")
 
-email = get_current_user_email()
+# Use session-based email (set at login)
+email = st.session_state.get("email", None)
 
 if not email:
-    st.warning("Please enter your email on the Home page.")
+    st.warning("Please log in to view your transactions.")
     st.stop()
 
 df = get_transactions_by_user(email)
