@@ -7,7 +7,7 @@ st.title("📄 Your Transactions")
 
 # Require login
 if "email" not in st.session_state or not st.session_state.email:
-    st.warning("Please log in to view your transactions.")
+    st.warning("⚠️ Please log in to view your transactions.")
     st.stop()
 
 # Get transactions from DB

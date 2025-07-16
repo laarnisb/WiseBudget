@@ -8,7 +8,7 @@ st.title("📊 Budget Insights")
 
 # Require login
 if "email" not in st.session_state or not st.session_state.email:
-    st.warning("Please log in to view budget insights.")
+    st.warning("⚠️ Please log in to view budget insights.")
     st.stop()
 
 # Fetch transactions
