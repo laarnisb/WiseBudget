@@ -1,5 +1,5 @@
 import streamlit as st
-from database import supabase, get_user_by_email
+from database import get_user_by_email, insert_budget_goals
 from utils import require_login
 from datetime import datetime
 
@@ -51,7 +51,7 @@ if user_id:
                 },
             ]
             try:
-                supabase.table("budget_goals").insert(data).execute()
+                insert_budget_goals(data)
                 st.success("✅ Budget goals saved successfully!")
             except Exception as e:
                 st.error(f"❌ Failed to save budget goals: {e}")
