@@ -2,6 +2,7 @@ import streamlit as st
 from database import insert_user, get_user_by_email
 from datetime import datetime
 import bcrypt
+import uuid
 
 st.set_page_config(page_title="Login/Register", page_icon="🔐")
 
@@ -53,7 +54,8 @@ with tab_register:
             st.warning("Email already registered. Please log in instead.")
         else:
             hashed_pw = bcrypt.hashpw(register_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-            success = insert_user(name, register_email, hashed_pw, datetime.utcnow())
+            uid = str(uuid.uuid4())
+            success = insert_user(uid, name, register_email, hashed_pw)
             if success:
                 st.success("User registered successfully! You can now log in.")
             else:
