@@ -11,14 +11,20 @@ st.title("🔐 Login or Register")
 # Initialize session state
 if "email" not in st.session_state:
     st.session_state.email = None
+if "name" not in st.session_state:
+    st.session_state.name = None
+
+# Display sidebar message if logged in
+if st.session_state.email:
+    st.sidebar.success(f"👋 Welcome, {st.session_state.name}!")
 
 # Tabs: Login first, then Register
-tab_login, tab_register = st.tabs(["Login", "Register"])
+tab_login, tab_register = st.tabs(["🔐 Login", "📝 Register"])
 
 # -------------------- Login Tab --------------------
 with tab_login:
-    st.header("Login to Your Account")
-    st.info("New here? Please create an account using the **Register** tab.")
+    st.header("🔐 Login to Your Account")
+    st.info("New here? Please register an account using the **Register** tab.")
 
     login_email = st.text_input("Email", key="login_email")
     login_password = st.text_input("Password", type="password", key="login_password")
@@ -27,15 +33,14 @@ with tab_login:
         user = get_user_by_email(login_email)
         if user and bcrypt.checkpw(login_password.encode("utf-8"), user["password"].encode("utf-8")):
             st.session_state.email = user["email"]
-            st.session_state.user_name = user["name"]
-            st.success(f"Welcome back, {user['name']}!")
-            st.switch_page("pages/3_View_Transactions.py")
+            st.session_state.name = user["name"]
+            st.success(f"Welcome back, {user['name']}! 👋")
         else:
             st.error("Invalid email or password.")
 
 # -------------------- Register Tab --------------------
 with tab_register:
-    st.header("Register a New Account")
+    st.header("📝 Register a New Account")
 
     name = st.text_input("Full Name", key="register_name")
     register_email = st.text_input("Email", key="register_email")
