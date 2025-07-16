@@ -32,7 +32,7 @@ def insert_user(uid, name, email, password):
         return {"error": str(e)}
 
 # Get user's UUID by email
-def get_user_id_by_email(email):
+def get_user_by_email(email):
     try:
         response = client.table("users").select("id").eq("email", email).limit(1).execute()
         return response.data[0]["id"] if response.data else None

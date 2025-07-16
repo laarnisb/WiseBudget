@@ -35,7 +35,7 @@ if uploaded_file:
             st.error("CSV must contain columns: date, description, amount, category.")
         else:
             user_email = st.session_state.email
-            user_id = get_user_id_by_email(user_email)
+            user_id = get_user_by_email(user_email)
 
             if user_id:
                 df["user_id"] = user_id
