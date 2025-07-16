@@ -13,17 +13,18 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 client: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # -------------------- USERS --------------------
-def insert_user(name: str, email: str, password: str, created_at: datetime) -> bool:
+def insert_user(name, email, password, created_at):
     try:
-        response = client.table("users").insert({
+        response = supabase.table("users").insert({
             "name": name,
             "email": email,
             "password": password,
-            "created_at": created_at.isoformat()
+            "created_at": created_at
         }).execute()
-        return True if response.status_code == 201 else False
+        print("Insert response:", response)
+        return response.status_code == 201
     except Exception as e:
-        print(f"Error inserting user: {e}")
+        print("Insert user error:", e)
         return False
 
 def get_user_by_email(email):
