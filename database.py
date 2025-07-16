@@ -54,6 +54,18 @@ def get_transactions_by_email(email):
     except Exception:
         return []
 
+def get_transactions_by_user(email):
+    user = get_user_by_email(email)
+    if not user or "id" not in user:
+        return []
+    user_id = user["id"]
+    try:
+        response = client.table("transactions").select("*").eq("user_id", user_id).execute()
+        return response.data if response.data else []
+    except Exception as e:
+        print("Error getting transactions:", e)
+        return []
+
 # Test Supabase connection
 def test_connection():
     try:
