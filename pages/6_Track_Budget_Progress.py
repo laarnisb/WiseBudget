@@ -1,80 +1,75 @@
 import streamlit as st
 import pandas as pd
-from sqlalchemy import text
-from database import get_engine
-from utils import get_current_user_email
-import plotly.graph_objects as go
+import matplotlib.pyplot as plt
+from database import get_user_by_email, get_transactions_by_user, fetch_budget_goals_by_user
 
-st.set_page_config(page_title="Track Budget Progress", page_icon="📊")
+st.set_page_config(page_title="📊 Track Budget Progress", page_icon="📊")
 st.title("📊 Track Budget Progress")
 
-email = get_current_user_email()
-
-if not email:
-    st.warning("Please log in to track your budget progress.")
+# Retrieve user email from session
+if "email" not in st.session_state:
+    st.warning("⚠️ Please log in to track your budget progress.")
     st.stop()
 
+user_email = st.session_state["email"]
+user = get_user_by_email(user_email)
+
+if user is None:
+    st.error("User not found.")
+    st.stop()
+
+user_id = user["id"]
+
 try:
-    engine = get_engine()
-    with engine.connect() as conn:
-        user_query = text("SELECT id FROM users WHERE email = :email")
-        user_result = conn.execute(user_query, {"email": email}).fetchone()
+    # Fetch transactions and budget goals
+    transactions = get_transactions_by_user(user_id)
+    goals = fetch_budget_goals_by_user(user_id)
 
-        if user_result:
-            user_id = user_result[0]
+    if not transactions:
+        st.warning("No transactions found for this user.")
+        st.stop()
 
-            goals_query = text("""
-                SELECT income, needs_percent, wants_percent, savings_percent
-                FROM budget_goals WHERE user_id = :user_id
-            """)
-            goals_result = conn.execute(goals_query, {"user_id": user_id}).fetchone()
+    if not goals:
+        st.warning("No budget goals set yet. Please set goals first.")
+        st.stop()
 
-            if goals_result:
-                income, needs_pct, wants_pct, savings_pct = goals_result
-                budget = {
-                    "Needs": round(income * needs_pct / 100, 2),
-                    "Wants": round(income * wants_pct / 100, 2),
-                    "Savings": round(income * savings_pct / 100, 2)
-                }
+    df = pd.DataFrame(transactions)
+    df = df[df["category"] != "Income"]  # Exclude Income
 
-                txn_query = text("SELECT category, amount FROM transactions WHERE user_id = :user_id")
-                txn_df = pd.DataFrame(conn.execute(txn_query, {"user_id": user_id}).fetchall(),
-                                      columns=["category", "amount"])
+    # Calculate totals
+    category_totals = df.groupby("category")["amount"].sum()
+    total_spent = category_totals.sum()
 
-                if not txn_df.empty:
-                    category_mapping = {
-                        "groceries": "Needs", "rent": "Needs", "utilities": "Needs", "transport": "Needs",
-                        "insurance": "Needs", "healthcare": "Needs", "internet": "Needs",
-                        "dining": "Wants", "entertainment": "Wants", "travel": "Wants", "shopping": "Wants",
-                        "subscriptions": "Wants",
-                        "savings": "Savings", "investment": "Savings", "emergency fund": "Savings", "retirement": "Savings"
-                    }
-                    txn_df["group"] = txn_df["category"].str.lower().map(category_mapping).fillna("Other")
+    # Prepare goals lookup
+    goals_dict = {item["category"]: item["budget_amount"] for item in goals}
 
-                    actual = txn_df.groupby("group")["amount"].sum().to_dict()
-                    for key in ["Needs", "Wants", "Savings"]:
-                        actual.setdefault(key, 0)
+    # Prepare comparison table
+    comparison_data = []
+    for category, spent in category_totals.items():
+        goal = goals_dict.get(category, 0)
+        status = "✅ On Track" if spent <= goal else "⚠️ Over Budget"
+        comparison_data.append({
+            "Category": category,
+            "Spent": spent,
+            "Budget Goal": goal,
+            "Status": status
+        })
 
-                    comparison_df = pd.DataFrame({
-                        "Budgeted": pd.Series(budget),
-                        "Actual": pd.Series(actual)
-                    })
-                    # ✅ Corrected: Difference = Budgeted - Actual
-                    comparison_df["Difference"] = comparison_df["Budgeted"] - comparison_df["Actual"]
+    comparison_df = pd.DataFrame(comparison_data)
 
-                    st.subheader("💰 Budget vs. Actual")
-                    st.dataframe(comparison_df)
+    # Show comparison table
+    st.subheader("📋 Budget Comparison")
+    st.dataframe(comparison_df, use_container_width=True)
 
-                    fig = go.Figure()
-                    fig.add_trace(go.Bar(x=list(budget.keys()), y=list(budget.values()), name="Budgeted"))
-                    fig.add_trace(go.Bar(x=list(actual.keys()), y=list(actual.values()), name="Actual"))
-                    fig.update_layout(barmode='group', title="Spending Comparison", yaxis_title="Amount ($)")
-                    st.plotly_chart(fig)
-                else:
-                    st.info("ℹ️ No transactions found for this user.")
-            else:
-                st.warning("⚠️ No budget goals found for this user.")
-        else:
-            st.warning("⚠️ No user found with that email.")
+    # Plot
+    st.subheader("📊 Budget Utilization by Category")
+    fig, ax = plt.subplots()
+    ax.bar(comparison_df["Category"], comparison_df["Spent"], label="Spent", alpha=0.7)
+    ax.bar(comparison_df["Category"], comparison_df["Budget Goal"], label="Goal", alpha=0.7)
+    ax.set_ylabel("Amount ($)")
+    ax.set_title("Spending vs Budget Goals")
+    ax.legend()
+    st.pyplot(fig)
+
 except Exception as e:
-    st.error(f"❌ Failed to track budget progress: {e}")
+    st.error(f"❌ Failed to track budget progress: {str(e)}")
