@@ -22,39 +22,50 @@ if st.session_state.email:
 tab_login, tab_register = st.tabs(["Login", "Register"])
 
 # -------------------- Login Tab --------------------
-with tab_login:
-    st.header("Login to Your Account")
+if tab == "Login":
+    st.subheader("Login to Your Account")
+
     st.info("New here? Please create an account using the **Register** tab.")
 
-    login_email = st.text_input("Email", key="login_email")
-    login_password = st.text_input("Password", type="password", key="login_password")
+    email = st.text_input("Email", key="login_email")
+    password = st.text_input("Password", type="password", key="login_password")
 
-    if st.button("Login", key="login_button"):
-        user = get_user_by_email(login_email)
-        if user and bcrypt.checkpw(login_password.encode("utf-8"), user["password"].encode("utf-8")):
-            st.session_state.email = user["email"]
-            st.session_state.name = user["name"]
+    if st.button("Login"):
+        user = get_user_by_email(email)
+        if user and bcrypt.checkpw(password.encode(), user["password"].encode()):
+            st.session_state["user"] = user
+            st.session_state["email"] = user["email"]
+            st.session_state["name"] = user["name"]
+
+            # Auto-clear fields
+            st.session_state["login_email"] = ""
+            st.session_state["login_password"] = ""
+
             st.success(f"Welcome back, {user['name']}! 👋")
             st.info("Use the sidebar to navigate through the app.")
         else:
-            st.error("Invalid email or password.")
+            st.error("Invalid email or password. Please try again.")
 
 # -------------------- Register Tab --------------------
-with tab_register:
-    st.header("Register a New Account")
+elif tab == "📝 Register":
+    st.subheader("📝 Create a New Account")
 
     name = st.text_input("Full Name", key="register_name")
-    register_email = st.text_input("Email", key="register_email")
-    register_password = st.text_input("Password", type="password", key="register_password")
+    email = st.text_input("Email", key="register_email")
+    password = st.text_input("Password", type="password", key="register_password")
 
-    if st.button("Register", key="register_button"):
-        existing_user = get_user_by_email(register_email)
-        if existing_user:
-            st.warning("Email already registered. Please log in instead.")
+    if st.button("Register"):
+        if get_user_by_email(email):
+            st.error("An account with this email already exists. Please log in instead.")
         else:
-            hashed_pw = bcrypt.hashpw(register_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-            success = insert_user(name, register_email, hashed_pw, datetime.utcnow())
+            hashed_pw = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+            success = insert_user(name, email, hashed_pw)
             if success:
-                st.success("User registered successfully! You can now log in.")
+                # Auto-clear fields after registration
+                st.session_state["register_name"] = ""
+                st.session_state["register_email"] = ""
+                st.session_state["register_password"] = ""
+
+                st.success("Account created successfully! You can now log in.")
             else:
-                st.error("Registration failed. Please try again.")
+                st.error("There was an error creating your account. Please try again.")
