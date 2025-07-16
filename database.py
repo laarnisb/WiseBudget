@@ -28,6 +28,19 @@ def insert_transaction(payload):
     except Exception as e:
         return {"error": str(e)}
 
+# ✅ This is the function needed by Upload Transactions page
+def insert_transactions(transactions):
+    try:
+        response = supabase.table("transactions").insert(transactions).execute()
+        return response
+    except Exception as e:
+        print("Error inserting transactions:", e)
+        return {"error": str(e)}
+
+# ✅ This is the dummy function needed by Track Budget Progress page
+def get_engine():
+    return None  # Not used, but included to prevent import error
+
 def get_transactions_by_user(email):
     user = get_user_by_email(email)
     if not user:
