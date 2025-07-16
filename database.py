@@ -111,3 +111,17 @@ def insert_budget_goals(goals_data):
     except Exception as e:
         print("Error inserting budget goals:", e)
         raise
+
+def save_budget_goals(user_id, income, needs_percent, wants_percent, savings_percent):
+    try:
+        response = supabase.table("budget_goals").insert({
+            "user_id": user_id,
+            "income": income,
+            "needs_percent": needs_percent,
+            "wants_percent": wants_percent,
+            "savings_percent": savings_percent
+        }).execute()
+        return response.data
+    except Exception as e:
+        print("Error saving budget goals:", e)
+        return None
