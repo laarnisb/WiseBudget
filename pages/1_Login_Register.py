@@ -20,6 +20,11 @@ if "name" not in st.session_state:
 if st.session_state.email:
     st.sidebar.success(f"Welcome, {st.session_state.name}!")
 
+# Show sidebar message after rerun
+if st.session_state.get("just_logged_in"):
+    st.info("Use the sidebar to navigate through the app.")
+    del st.session_state["just_logged_in"]  # Clean up the flag
+
 # Tabs: Login first, then Register
 tab_login, tab_register = st.tabs(["Login", "Register"])
 
@@ -36,13 +41,13 @@ with tab_login:
         if user and bcrypt.checkpw(login_password.encode("utf-8"), user["password"].encode("utf-8")):
             st.session_state.email = user["email"]
             st.session_state.name = user["name"]
-            st.success(f"Welcome back, {user['name']}! 👋")
+            st.session_state.just_logged_in = True  # Set flag
             time.sleep(2.5)
             st.rerun()
             st.info("Use the sidebar to navigate through the app.")
         else:
             st.error("Invalid email or password.")
- 
+    
 # -------------------- Register Tab --------------------
 with tab_register:
     st.header("Register a New Account")
