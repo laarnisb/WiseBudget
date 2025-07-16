@@ -26,11 +26,15 @@ def insert_user(name: str, email: str, password: str, created_at: datetime) -> b
         print(f"Error inserting user: {e}")
         return False
 
-def get_user_id_by_email(email):
-    response = supabase.table("users").select("id").eq("email", email).execute()
-    if response.data:
-        return response.data[0]["id"]
-    return None
+def get_user_by_email(email):
+    try:
+        response = client.table("users").select("*").eq("email", email).single().execute()
+        if response.data:
+            return response.data
+        return None
+    except Exception as e:
+        print("❌ Error fetching user by email:", str(e))
+        return None
 
 # -------------------- TRANSACTIONS --------------------
 def insert_transactions(transactions: List[dict]) -> bool:
