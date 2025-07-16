@@ -3,6 +3,7 @@ from supabase import create_client, Client
 from dotenv import load_dotenv
 from typing import Optional, List
 from datetime import datetime
+import uuid
 
 # Load environment variables from .env if available
 load_dotenv()
@@ -13,19 +14,21 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 client: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # -------------------- USERS --------------------
-def insert_user(name, email, password, created_at):
+def insert_user(uid, name, email, password):
     try:
         response = supabase.table("users").insert({
+            "id": uid,
             "name": name,
             "email": email,
             "password": password,
-            "created_at": created_at
+            "created_at": datetime.utcnow().isoformat()
         }).execute()
-        print("Insert response:", response)
-        return response.status_code == 201
+
+        if response.error:
+            return {"error": str(response.error)}
+        return {"data": response.data}
     except Exception as e:
-        print("Insert user error:", e)
-        return False
+        return {"error": str(e)}
 
 def get_user_by_email(email):
     try:

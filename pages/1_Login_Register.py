@@ -2,10 +2,9 @@ import streamlit as st
 from database import insert_user, get_user_by_email
 from datetime import datetime
 import bcrypt
+import uuid
 
 st.set_page_config(page_title="Login/Register", page_icon="🔐")
-
-# -------------------- Page Title --------------------
 st.title("🔐 Login or Register")
 
 # Initialize session state
@@ -14,11 +13,11 @@ if "email" not in st.session_state:
 if "name" not in st.session_state:
     st.session_state.name = None
 
-# Display sidebar message if logged in
+# Sidebar welcome message
 if st.session_state.email:
     st.sidebar.success(f"👋 Welcome, {st.session_state.name}!")
 
-# Tabs: Login first, then Register
+# Tabs for login and registration
 tab_login, tab_register = st.tabs(["Login", "Register"])
 
 # -------------------- Login Tab --------------------
@@ -41,20 +40,25 @@ with tab_login:
 
 # -------------------- Register Tab --------------------
 with tab_register:
-    st.header("Register a New Account")
+    st.header("Create a New Account")
 
     name = st.text_input("Full Name", key="register_name")
     register_email = st.text_input("Email", key="register_email")
     register_password = st.text_input("Password", type="password", key="register_password")
 
     if st.button("Register", key="register_button"):
-        existing_user = get_user_by_email(register_email)
-        if existing_user:
-            st.warning("Email already registered. Please log in instead.")
-        else:
-            hashed_pw = bcrypt.hashpw(register_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-            success = insert_user(name, register_email, hashed_pw, datetime.utcnow())
-            if success:
-                st.success("User registered successfully! You can now log in.")
+        if name and register_email and register_password:
+            existing_user = get_user_by_email(register_email)
+            if existing_user:
+                st.warning("⚠️ Email already registered. Please log in instead.")
             else:
-                st.error("Registration failed. Please try again.")
+                hashed_pw = bcrypt.hashpw(register_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+                uid = str(uuid.uuid4())
+                result = insert_user(uid, name, register_email, hashed_pw)
+
+                if "error" in result:
+                    st.error(f"Registration failed: {result['error']}")
+                else:
+                    st.success("✅ Registration successful. You can now log in.")
+        else:
+            st.warning("Please fill in all fields.")
