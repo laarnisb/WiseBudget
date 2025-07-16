@@ -39,10 +39,14 @@ if uploaded_file:
 
             if user_id:
                 df["user_id"] = user_id
-                insert_transactions(df)
-                st.success("✅ Transactions uploaded successfully!")
-                st.dataframe(df)
+                response = insert_transactions(df.to_dict(orient="records"))
+                if "error" in response:
+                    st.error(f"❌ Failed to upload transactions: {response['error']}")
+                else:
+                    st.success("✅ Transactions uploaded successfully!")
+                    st.dataframe(df)
             else:
-                st.error("❌ Could not find user ID for this email.")
+                st.error("❌ Failed to retrieve user ID.")
+            
     except Exception as e:
         st.error(f"Error processing file: {e}")

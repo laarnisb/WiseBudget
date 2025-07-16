@@ -31,13 +31,13 @@ def insert_user(uid, name, email, password):
     except Exception as e:
         return {"error": str(e)}
 
-# Check if a user already exists by email
-def get_user_by_email(email):
+# Get user's UUID by email
+def get_user_id_by_email(email):
     try:
-        response = client.table("users").select("*").eq("email", email).limit(1).execute()
-        return response.data[0] if response.data else None
+        response = client.table("users").select("id").eq("email", email).limit(1).execute()
+        return response.data[0]["id"] if response.data else None
     except Exception as e:
-        return {"error": str(e)}
+        return None
 
 # Insert multiple transactions into the 'transactions' table
 def insert_transactions(transactions):
