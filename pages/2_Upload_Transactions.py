@@ -1,39 +1,35 @@
 import streamlit as st
 import pandas as pd
-import time
-from database import insert_transactions
-from utils import get_user_id_by_email
-from st_files_connection import FilesConnection
+from database import insert_transactions, get_user_id_by_email
 
 st.set_page_config(page_title="📤 Upload Transactions", page_icon="📤")
-st.title("📤 Upload Transactions")
+st.title("📤 Upload Your Transactions")
 
-# Check if user is logged in
-if "email" not in st.session_state:
-    st.warning("Please log in first.")
+# Only allow access if logged in
+if not st.session_state.get("email"):
+    st.warning("Please log in to upload transactions.")
     st.stop()
 
-email = st.session_state["email"]
-user_id = get_user_id_by_email(email)
+# Upload CSV
+uploaded_file = st.file_uploader("Upload a CSV file", type=["csv"])
 
-# File uploader
-uploaded_file = st.file_uploader("Choose a CSV file to upload", type="csv")
+if uploaded_file:
+    try:
+        df = pd.read_csv(uploaded_file)
 
-if uploaded_file is not None:
-    df = pd.read_csv(uploaded_file)
-
-    # Check required columns
-    required_columns = {"description", "category", "amount", "date"}
-    if required_columns.issubset(df.columns):
-        df["user_id"] = user_id
-        df["email"] = email
-
-        result = insert_transactions(df)
-
-        if "error" not in result:
-            st.success("✅ Transactions uploaded successfully!")
-            st.info("You can now view them in the '📄 View Transactions' section from the sidebar.")
+        required_columns = {"date", "description", "amount", "category"}
+        if not required_columns.issubset(df.columns):
+            st.error("CSV must contain columns: date, description, amount, category.")
         else:
-            st.error(f"❌ Failed to insert transactions: {result['error']}")
-    else:
-        st.error("❌ CSV must contain 'description', 'category', 'amount', and 'date' columns.")
+            user_email = st.session_state.email
+            user_id = get_user_id_by_email(user_email)
+
+            if user_id:
+                df["user_id"] = user_id
+                insert_transactions(df)
+                st.success("✅ Transactions uploaded successfully!")
+                st.dataframe(df)
+            else:
+                st.error("❌ Could not find user ID for this email.")
+    except Exception as e:
+        st.error(f"Error processing file: {e}")
