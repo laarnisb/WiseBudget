@@ -1,45 +1,42 @@
-# database.py
-
-from supabase import create_client  # Supabase client for database and auth
-from datetime import datetime       # Used for generating registration timestamp
 import os
-from dotenv import load_dotenv      # Load environment variables securely from .env
-from passlib.hash import bcrypt     # For checking password hashes
+from supabase import create_client, Client
+from dotenv import load_dotenv
 
-# Load the .env file to access SUPABASE_URL and SUPABASE_KEY
 load_dotenv()
 
-# Retrieve Supabase credentials from environment variables
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-# Create Supabase client
-client = create_client(SUPABASE_URL, SUPABASE_KEY)
+client: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# Insert a new user into the 'users' table with hashed password already provided
-def insert_user(uid, name, email, password):
-    registration_date = datetime.utcnow().isoformat()
+# --- USERS ---
+
+def insert_user(email, password, name):
     try:
         response = client.table("users").insert({
-            "id": uid,
-            "name": name,
             "email": email,
-            "password": password,  # Already hashed before calling this function
-            "registration_date": registration_date
+            "password": password,
+            "name": name
         }).execute()
         return response
     except Exception as e:
         return {"error": str(e)}
 
-# Get user's UUID by email
 def get_user_by_email(email):
     try:
         response = client.table("users").select("*").eq("email", email).limit(1).execute()
         return response.data[0] if response.data else None
-    except Exception as e:
-        return {"error": str(e)}
+    except Exception:
+        return None
 
-# Insert multiple transactions into the 'transactions' table
+def get_user_id_by_email(email):
+    user = get_user_by_email(email)
+    if isinstance(user, dict) and "id" in user:
+        return user["id"]
+    return None
+
+# --- TRANSACTIONS ---
+
 def insert_transactions(transactions):
     try:
         response = client.table("transactions").insert(transactions).execute()
@@ -47,13 +44,15 @@ def insert_transactions(transactions):
     except Exception as e:
         return {"error": str(e)}
 
-# Get all transactions for a specific user by email
 def get_transactions_by_email(email):
     try:
-        response = client.table("transactions").select("*").eq("user_email", email).order("date", desc=False).execute()
-        return response.data
-    except Exception as e:
-        return {"error": str(e)}
+        user = get_user_by_email(email)
+        if not user:
+            return []
+        response = client.table("transactions").select("*").eq("user_id", user["id"]).execute()
+        return response.data if response.data else []
+    except Exception:
+        return []
 
 # Test Supabase connection
 def test_connection():
