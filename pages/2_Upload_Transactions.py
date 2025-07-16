@@ -5,6 +5,10 @@ from database import insert_transactions, get_user_by_email
 st.set_page_config(page_title="📤 Upload Transactions", page_icon="📤")
 st.title("📤 Upload Your Transactions")
 
+# Display sidebar message if logged in
+if st.session_state.email:
+    st.sidebar.success(f"Welcome, {st.session_state.name}!")
+
 # Only allow access if logged in
 if not st.session_state.get("email"):
     st.warning("Please log in to upload transactions.")
@@ -12,6 +16,15 @@ if not st.session_state.get("email"):
 
 # Upload CSV
 uploaded_file = st.file_uploader("Upload a CSV file", type=["csv"])
+st.markdown("""
+ℹ️ **Note:** Your CSV file must contain the following column headers:
+- `date`
+- `description`
+- `category`
+- `amount`
+
+These headers are **case-sensitive** and must be spelled exactly.
+""")
 
 if uploaded_file:
     try:

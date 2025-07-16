@@ -3,6 +3,7 @@ from database import insert_user, get_user_by_email
 from datetime import datetime
 import bcrypt
 import uuid
+import time
 
 st.set_page_config(page_title="Login/Register", page_icon="🔐")
 
@@ -36,9 +37,9 @@ with tab_login:
             st.session_state.email = user["email"]
             st.session_state.name = user["name"]
             st.success(f"Welcome back, {user['name']}! 👋")
-            st.info("Use the sidebar to navigate through the app.")
             time.sleep(2.5)
             st.rerun()
+            st.info("Use the sidebar to navigate through the app.")
         else:
             st.error("Invalid email or password.")
  
