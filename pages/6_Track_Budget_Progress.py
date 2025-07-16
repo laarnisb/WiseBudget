@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-from database import get_user_by_email, get_transactions_by_user, fetch_budget_goals_by_user
+from database import get_user_by_email, fetch_transactions_by_user, fetch_budget_goals_by_user
 
 st.set_page_config(page_title="📊 Track Budget Progress", page_icon="📊")
 st.title("📊 Track Budget Progress")
@@ -22,7 +22,7 @@ user_id = user["id"]
 
 try:
     # Fetch transactions and budget goals
-    transactions = get_transactions_by_user(user_id)
+    transactions = fetch_transactions_by_user(user_id)
     goals = fetch_budget_goals_by_user(user_id)
 
     if not transactions:
