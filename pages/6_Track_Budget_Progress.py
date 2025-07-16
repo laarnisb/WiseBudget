@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from utils import get_user_id_by_email
 from database import fetch_transactions_by_user, fetch_budget_goals_by_user
+import matplotlib.pyplot as plt
 
 st.set_page_config(page_title="📊 Track Budget Progress", page_icon="📊")
 st.title("📊 Track Budget Progress")
@@ -86,3 +87,28 @@ st.dataframe(summary_df.style.format({
 }))
 
 st.caption("Use the sidebar to navigate through the app.")
+
+# Prepare bar chart data
+categories = summary_df['Category']
+budgeted = summary_df['Budgeted']
+actual = summary_df['Actual']
+differences = summary_df['Difference']
+
+x = range(len(categories))
+
+fig, ax = plt.subplots(figsize=(8, 5))
+bar1 = ax.bar(x, budgeted, width=0.4, label='Budgeted', align='center')
+bar2 = ax.bar([p + 0.4 for p in x], actual, width=0.4, label='Actual', align='center')
+
+# Annotate differences above bars
+for i, diff in enumerate(differences):
+    color = 'red' if diff < 0 else 'green'
+    ax.text(i + 0.2, max(budgeted[i], actual[i]) + 10, f"${diff:,.2f}", ha='center', va='bottom', color=color)
+
+ax.set_xticks([p + 0.2 for p in x])
+ax.set_xticklabels(categories)
+ax.set_ylabel('Amount ($)')
+ax.set_title('Budgeted vs Actual Spending')
+ax.legend()
+
+st.pyplot(fig)
