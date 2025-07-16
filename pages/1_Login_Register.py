@@ -53,12 +53,11 @@ with tab_register:
                 st.warning("⚠️ Email already registered. Please log in instead.")
             else:
                 hashed_pw = bcrypt.hashpw(register_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-                uid = str(uuid.uuid4())
-                result = insert_user(uid, name, register_email, hashed_pw)
+                success = insert_user(name, register_email, hashed_pw, datetime.utcnow())
 
-                if "error" in result:
-                    st.error(f"Registration failed: {result['error']}")
-                else:
+                if success is True:
                     st.success("✅ Registration successful. You can now log in.")
+                else:
+                    st.error("Registration failed. Please try again.")
         else:
             st.warning("Please fill in all fields.")

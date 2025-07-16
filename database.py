@@ -1,5 +1,5 @@
 import os
-from supabase import create_client, Client
+from supabase import create_client
 from dotenv import load_dotenv
 from typing import Optional, List
 from datetime import datetime
@@ -11,24 +11,21 @@ load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-client: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # -------------------- USERS --------------------
-def insert_user(uid, name, email, password):
-    try:
+def insert_user(name, email, password, created_at):    try:
         response = supabase.table("users").insert({
-            "id": uid,
             "name": name,
             "email": email,
             "password": password,
-            "created_at": datetime.utcnow().isoformat()
+            "created_at": created_at
         }).execute()
-
-        if response.error:
-            return {"error": str(response.error)}
-        return {"data": response.data}
+        print("Insert response:", response)
+        return response.status_code == 201
     except Exception as e:
-        return {"error": str(e)}
+        print("Insert user error:", e)
+        return False
 
 def get_user_by_email(email):
     try:
