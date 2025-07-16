@@ -1,20 +1,17 @@
-import os
 from supabase import create_client
+import os
 from dotenv import load_dotenv
-from typing import Optional, List
 from datetime import datetime
-import uuid
 
-# Load environment variables from .env if available
-load_dotenv()
+load_dotenv()  # Load SUPABASE_URL and SUPABASE_KEY from .env if available
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# -------------------- USERS --------------------
-def insert_user(name, email, password, created_at):    try:
+def insert_user(name, email, password, created_at):
+    try:
         response = supabase.table("users").insert({
             "name": name,
             "email": email,
@@ -34,33 +31,15 @@ def get_user_by_email(email):
             return response.data
         return None
     except Exception as e:
-        print("❌ Error fetching user by email:", str(e))
+        print("Get user error:", e)
         return None
 
-# -------------------- TRANSACTIONS --------------------
-def insert_transactions(transactions: List[dict]) -> bool:
-    try:
-        response = supabase.table("transactions").insert(transactions).execute()
-        return True if response.status_code == 201 else False
-    except Exception as e:
-        print(f"Failed to insert transactions: {e}")
-        return False
-
-def get_transactions_by_user(email: str) -> List[dict]:
-    try:
-        response = supabase.table("transactions").select("*").eq("email", email).order("date", desc=True).execute()
-        return response.data if response.data else []
-    except Exception as e:
-        print(f"Error fetching transactions: {e}")
-        return []
-
-# -------------------- TEST CONNECTION --------------------
-def test_connection() -> str:
+def test_connection():
     try:
         response = supabase.table("users").select("*").limit(1).execute()
         if response.data is not None:
-            return "✅ Supabase connected successfully!"
+            return "✅ Supabase connection successful!"
         else:
             return "⚠️ Supabase connected but no data found in 'users' table."
     except Exception as e:
-        return f"❌ Supabase connection error: {str(e)}"
+        return f"❌ Supabase connection failed: {str(e)}"
