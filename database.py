@@ -97,6 +97,17 @@ def get_budget_goals_by_user(user_id):
         print("Error fetching budget goals:", e)
         return []
 
+def fetch_budget_goals_by_user(user_id):
+    try:
+        response = supabase.table("budget_goals") \
+            .select("category, budget_amount") \
+            .eq("user_id", user_id) \
+            .execute()
+        return response.data if response.data else []
+    except Exception as e:
+        print("Error fetching budget goals:", e)
+        return []
+
 # -------------------------
 # TEST CONNECTION
 # -------------------------
