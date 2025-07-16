@@ -6,6 +6,9 @@ import uuid
 
 st.set_page_config(page_title="Login/Register", page_icon="🔐")
 
+if "email" in st.session_state and st.session_state.email:
+    st.sidebar.success(f"👋 Welcome, {st.session_state.name}!")
+
 # -------------------- Page Title --------------------
 st.title("🔐 Login or Register")
 
@@ -20,12 +23,12 @@ if st.session_state.email:
     st.sidebar.success(f"👋 Welcome, {st.session_state.name}!")
 
 # Tabs: Login first, then Register
-tab_login, tab_register = st.tabs(["🔐 Login", "📝 Register"])
+tab_login, tab_register = st.tabs(["Login", "Register"])
 
 # -------------------- Login Tab --------------------
 with tab_login:
-    st.header("🔐 Login to Your Account")
-    st.info("New here? Please register an account using the **Register** tab.")
+    st.header("Login to Your Account")
+    st.info("New here? Please create an account using the **Register** tab.")
 
     login_email = st.text_input("Email", key="login_email")
     login_password = st.text_input("Password", type="password", key="login_password")
@@ -42,7 +45,7 @@ with tab_login:
 
 # -------------------- Register Tab --------------------
 with tab_register:
-    st.header("📝 Register a New Account")
+    st.header("Register a New Account")
 
     name = st.text_input("Full Name", key="register_name")
     register_email = st.text_input("Email", key="register_email")
