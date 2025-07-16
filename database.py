@@ -59,6 +59,18 @@ def fetch_transactions_by_user(user_id):
         print("Error fetching transactions:", e)
         return []
 
+def get_transactions_by_user(user_id):
+    try:
+        response = supabase.table("transactions") \
+            .select("*") \
+            .eq("user_id", user_id) \
+            .order("date", desc=True) \
+            .execute()
+        return response.data if response.data else []
+    except Exception as e:
+        print("Error fetching transactions by user:", e)
+        return []
+
 # -------------------------
 # BUDGET GOALS FUNCTIONS
 # -------------------------
