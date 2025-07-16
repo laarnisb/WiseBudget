@@ -28,7 +28,7 @@ with tab_login:
     st.header("Login to Your Account")
     st.info("New here? Please create an account using the **Register** tab.")
 
-    login_email = st.text_input("Email", key="login_email")
+    login_email = st.text_input("Email", key="login_email").strip().lower()
     login_password = st.text_input("Password", type="password", key="login_password")
 
     if st.button("Login", key="login_button"):
@@ -58,7 +58,7 @@ with tab_register:
     st.header("Register a New Account")
 
     name = st.text_input("Full Name", key="register_name")
-    register_email = st.text_input("Email", key="register_email")
+    register_email = st.text_input("Email", key="register_email").strip().lower()
     register_password = st.text_input("Password", type="password", key="register_password")
 
     if st.button("Register", key="register_button"):
