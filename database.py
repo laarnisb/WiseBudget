@@ -29,7 +29,7 @@ def insert_user(name, email, password, created_at):    try:
 
 def get_user_by_email(email):
     try:
-        response = client.table("users").select("*").eq("email", email).single().execute()
+        response = supabase.table("users").select("*").eq("email", email).single().execute()
         if response.data:
             return response.data
         return None
@@ -40,7 +40,7 @@ def get_user_by_email(email):
 # -------------------- TRANSACTIONS --------------------
 def insert_transactions(transactions: List[dict]) -> bool:
     try:
-        response = client.table("transactions").insert(transactions).execute()
+        response = supabase.table("transactions").insert(transactions).execute()
         return True if response.status_code == 201 else False
     except Exception as e:
         print(f"Failed to insert transactions: {e}")
@@ -48,7 +48,7 @@ def insert_transactions(transactions: List[dict]) -> bool:
 
 def get_transactions_by_user(email: str) -> List[dict]:
     try:
-        response = client.table("transactions").select("*").eq("email", email).order("date", desc=True).execute()
+        response = supabase.table("transactions").select("*").eq("email", email).order("date", desc=True).execute()
         return response.data if response.data else []
     except Exception as e:
         print(f"Error fetching transactions: {e}")
@@ -57,7 +57,7 @@ def get_transactions_by_user(email: str) -> List[dict]:
 # -------------------- TEST CONNECTION --------------------
 def test_connection() -> str:
     try:
-        response = client.table("users").select("*").limit(1).execute()
+        response = supabase.table("users").select("*").limit(1).execute()
         if response.data is not None:
             return "✅ Supabase connected successfully!"
         else:
