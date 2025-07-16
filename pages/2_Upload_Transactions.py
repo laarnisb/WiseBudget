@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from database import insert_transactions, get_user_id_by_email
+from database import insert_transactions, get_user_by_email
 
 st.set_page_config(page_title="📤 Upload Transactions", page_icon="📤")
 st.title("📤 Upload Your Transactions")
