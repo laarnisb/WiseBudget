@@ -1,30 +1,20 @@
 import streamlit as st
 import pandas as pd
 from database import get_transactions_by_user
-from security_utils import escape_output
+from utils import get_current_user_email
 
-st.set_page_config(page_title="View Transactions", page_icon="📄")
-st.title("📄 View Transactions")
+st.set_page_config(page_title="📋 View Transactions", page_icon="📋")
+st.title("📋 Your Transactions")
 
-# Use session-based email (set at login)
-email = st.session_state.get("email", None)
+email = get_current_user_email()
 
 if not email:
-    st.warning("Please log in to view your transactions.")
+    st.warning("Please log in to view transactions.")
     st.stop()
 
-df = get_transactions_by_user(email)
+transactions = get_transactions_by_user(email)
 
-if df.empty:
-    st.info("ℹ️ No transactions found for this user.")
+if transactions.empty:
+    st.info("ℹ️ No transactions found.")
 else:
-    st.success(f"✅ {len(df)} transaction(s) found.")
-
-    df["description"] = df["description"].astype(str).apply(escape_output)
-    df["category"] = df["category"].astype(str).apply(escape_output)
-    df["amount"] = df["amount"].map("{:.2f}".format)
-
-    df["date"] = pd.to_datetime(df["date"])
-    df = df.sort_values(by="date", ascending=False)
-
-    st.dataframe(df, use_container_width=True)
+    st.dataframe(transactions)

@@ -11,8 +11,6 @@ st.title("🔐 Login or Register")
 # Initialize session state
 if "email" not in st.session_state:
     st.session_state.email = None
-if "name" not in st.session_state:
-    st.session_state.name = None
 
 # Tabs: Login first, then Register
 tab_login, tab_register = st.tabs(["Login", "Register"])
@@ -20,7 +18,6 @@ tab_login, tab_register = st.tabs(["Login", "Register"])
 # -------------------- Login Tab --------------------
 with tab_login:
     st.header("Login to Your Account")
-
     st.info("New here? Please create an account using the **Register** tab.")
 
     login_email = st.text_input("Email", key="login_email")
@@ -30,11 +27,8 @@ with tab_login:
         user = get_user_by_email(login_email)
         if user and bcrypt.checkpw(login_password.encode("utf-8"), user["password"].encode("utf-8")):
             st.session_state.email = user["email"]
-            st.session_state.name = user["name"]
             st.success(f"Welcome back, {user['name']}!")
-            st.rerun()  # Updated for redirect/session update
-        else:
-            st.error("Invalid email or password.")
+            st.experimental_rerun()  # rerun to trigger redirect
 
 # -------------------- Register Tab --------------------
 with tab_register:
@@ -55,3 +49,7 @@ with tab_register:
                 st.success("User registered successfully! You can now log in.")
             else:
                 st.error("Registration failed. Please try again.")
+
+# Redirect if logged in
+if st.session_state.email:
+    st.switch_page("pages/3_View_Transactions.py")
