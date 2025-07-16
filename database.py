@@ -9,6 +9,16 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+def test_connection():
+    try:
+        response = supabase.table("users").select("*").limit(1).execute()
+        if response.data:
+            return "✅ Supabase connected successfully!"
+        else:
+            return "⚠️ Supabase connected but no data found in 'users' table."
+    except Exception as e:
+        return f"❌ Connection failed: {str(e)}"
+
 def insert_user(email, password_hash, full_name):
     return supabase.table("users").insert({
         "id": str(uuid.uuid4()),
@@ -28,7 +38,6 @@ def insert_transaction(payload):
     except Exception as e:
         return {"error": str(e)}
 
-# ✅ This is the function needed by Upload Transactions page
 def insert_transactions(transactions):
     try:
         response = supabase.table("transactions").insert(transactions).execute()
@@ -37,9 +46,8 @@ def insert_transactions(transactions):
         print("Error inserting transactions:", e)
         return {"error": str(e)}
 
-# ✅ This is the dummy function needed by Track Budget Progress page
 def get_engine():
-    return None  # Not used, but included to prevent import error
+    return None  # Placeholder to prevent import error
 
 def get_transactions_by_user(email):
     user = get_user_by_email(email)
@@ -103,11 +111,3 @@ def insert_budget_goals(goals_data):
     except Exception as e:
         print("Error inserting budget goals:", e)
         raise
-
-# Test Supabase connection
-def test_connection():
-    try:
-        response = client.table("users").select("*").limit(1).execute()
-        return "✅ Supabase connected successfully!" if response.data else "⚠️ Connected but no data."
-    except Exception as e:
-        return f"❌ Connection failed: {e}"
