@@ -100,13 +100,15 @@ def get_budget_goals_by_user(user_id):
 def fetch_budget_goals_by_user(user_id):
     try:
         response = supabase.table("budget_goals") \
-            .select("category, budget_amount") \
+            .select("needs_percent, wants_percent, savings_percent, income") \
             .eq("user_id", user_id) \
+            .order("created_at", desc=True) \
+            .limit(1) \
             .execute()
-        return response.data if response.data else []
+        return response.data[0] if response.data else None
     except Exception as e:
         print("Error fetching budget goals:", e)
-        return []
+        return None
 
 # -------------------------
 # TEST CONNECTION
