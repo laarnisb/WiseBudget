@@ -44,7 +44,8 @@ if uploaded_file:
                 df["date"] = pd.to_datetime(df["date"]).dt.strftime("%Y-%m-%d")
 
                 # Ensure only valid columns are included
-                df = df[["user_id", "date", "description", "category", "amount"]].dropna()
+                df = df[["user_id", "date", "description", "category", "amount"]]
+                df = df.dropna(subset=["date", "amount"])
 
                 # Convert DataFrame to JSON-compatible records
                 payload = df.to_dict(orient="records")
