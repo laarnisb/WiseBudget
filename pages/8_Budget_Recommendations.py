@@ -1,100 +1,84 @@
 import streamlit as st
 import pandas as pd
-from sqlalchemy import text
-from database import get_engine
+from database import get_user_by_email, get_transactions_by_user
+from utils import get_user_id_by_email
 
-st.set_page_config(page_title="Budget Recommendations", page_icon="💡")
-st.title("💡 Personalized Budget Recommendations")
+st.set_page_config(page_title="💡 Budget Recommendations", page_icon="💡")
+st.title("💡 Budget Recommendations")
 
-# Ensure user is logged in
-email = st.session_state.get("email", "")
-if not email:
-    st.warning("Please enter your email on the Home page.")
+if "email" not in st.session_state or not st.session_state["email"]:
+    st.warning("⚠️ Please log in to view recommendations.")
     st.stop()
 
-try:
-    engine = get_engine()
-    with engine.connect() as conn:
-        query = text("""
-            SELECT t.category, SUM(t.amount) AS total
-            FROM transactions t
-            JOIN users u ON t.user_id = u.id
-            WHERE u.email = :email
-            GROUP BY t.category
-        """)
-        result = conn.execute(query, {"email": email})
-        df = pd.DataFrame(result.fetchall(), columns=result.keys())
+email = st.session_state["email"]
+user = get_user_by_email(email)
+if not user:
+    st.warning("User not found.")
+    st.stop()
 
-    if df.empty:
-        st.info("ℹ️ No transactions found to generate recommendations.")
-    else:
-        # Define category groups
-        needs = {"groceries", "rent", "utilities", "transportation", "insurance", "healthcare"}
-        wants = {"dining", "entertainment", "shopping", "travel", "subscriptions"}
-        savings = {"savings", "investments", "debt payment"}
+user_id = get_user_id_by_email(email)
+transactions = get_transactions_by_user(user_id)
 
-        def assign_group(cat):
-            cat = cat.strip().lower()
-            if cat in needs:
-                return "Needs"
-            elif cat in wants:
-                return "Wants"
-            elif cat in savings:
-                return "Savings"
-            else:
-                return "Other"
+if not transactions:
+    st.info("No transactions found.")
+    st.stop()
 
-        df["group"] = df["category"].apply(assign_group)
-        df = df[df["group"] != "Other"]
+df = pd.DataFrame(transactions)
+df["date"] = pd.to_datetime(df["date"])
+df["month"] = df["date"].dt.to_period("M").astype(str)
 
-        group_summary = df.groupby("group")["total"].sum().reset_index()
-        total_spent = group_summary["total"].sum()
+latest_month = df["month"].max()
+latest_df = df[df["month"] == latest_month]
 
-        group_summary["actual"] = group_summary["total"] / total_spent
-        group_summary["target"] = group_summary["group"].map({
-            "Needs": 0.50,
-            "Wants": 0.30,
-            "Savings": 0.20
-        })
+summary = latest_df.groupby("category")["amount"].sum().reset_index()
+total_spent = summary["amount"].sum()
 
-        summary_df = group_summary[["group", "actual", "target"]]
-        st.subheader("📊 Budget Allocation Summary")
-        st.dataframe(summary_df.style.format({
-            "actual": "{:.2%}",
-            "target": "{:.2%}"
-        }), use_container_width=True)
+# Budget allocation rules
+needs_budget = 0.50 * total_spent
+wants_budget = 0.30 * total_spent
+savings_budget = 0.20 * total_spent
 
-        # Generate Recommendations
-        st.subheader("📝 Recommendations")
-        recs = []
+# Mapping categories
+category_map = {
+    "Rent": "Needs",
+    "Utilities": "Needs",
+    "Groceries": "Needs",
+    "Transportation": "Needs",
+    "Healthcare": "Needs",
+    "Dining": "Wants",
+    "Entertainment": "Wants",
+    "Shopping": "Wants",
+    "Travel": "Wants",
+    "Savings": "Savings",
+    "Investments": "Savings",
+    "Other": "Wants",
+}
 
-        for _, row in summary_df.iterrows():
-            group = row["group"]
-            actual = row["actual"]
-            target = row["target"]
+summary["Group"] = summary["category"].map(category_map).fillna("Wants")
+grouped = summary.groupby("Group")["amount"].sum().reset_index()
 
-            # Safeguard against missing data
-            if pd.isna(actual) or pd.isna(target):
-                continue
+# Display
+st.subheader(f"Spending Recommendations for {latest_month}")
+st.write("Based on the 50/30/20 rule:")
 
-            if group == "Needs" and actual > target * 1.1:
-                recs.append("You're spending more than planned on Needs. Try identifying essential vs. non-essential items.")
-            elif group == "Wants" and actual > target * 1.1:
-                recs.append("Wants are exceeding budget. Consider limiting entertainment or luxury purchases.")
-            elif group == "Savings" and actual < target * 0.9:
-                recs.append("You're saving less than planned. Try setting up automatic transfers to savings.")
-            elif group == "Needs" and actual < target * 0.9:
-                recs.append("Great job keeping Needs below budget! Just ensure essential needs are met.")
-            elif group == "Wants" and actual < target * 0.9:
-                recs.append("You're well under on Wants. Consider allocating more to Savings if possible.")
-            elif group == "Savings" and actual > target * 1.1:
-                recs.append("Excellent! You're saving more than expected.")
+rec_table = pd.DataFrame({
+    "Group": ["Needs", "Wants", "Savings"],
+    "Budgeted": [needs_budget, wants_budget, savings_budget],
+    "Actual": [
+        grouped[grouped["Group"] == "Needs"]["amount"].sum(),
+        grouped[grouped["Group"] == "Wants"]["amount"].sum(),
+        grouped[grouped["Group"] == "Savings"]["amount"].sum(),
+    ]
+})
+rec_table["Difference"] = rec_table["Actual"] - rec_table["Budgeted"]
 
-        if recs:
-            for r in recs:
-                st.write(f"✅ {r}")
-        else:
-            st.success("🎯 Your spending is well-aligned with your budget goals!")
+st.dataframe(rec_table.style.format(precision=2), use_container_width=True)
 
-except Exception as e:
-    st.error(f"❌ Error generating recommendations: {e}")
+# Insight message
+for _, row in rec_table.iterrows():
+    diff = row["Difference"]
+    label = row["Group"]
+    if diff > 0:
+        st.warning(f"⚠️ You overspent on **{label}** by ${diff:.2f}.")
+    elif diff < 0:
+        st.success(f"✅ You are under your **{label}** budget by ${-diff:.2f}.")
