@@ -1,47 +1,55 @@
 from supabase import create_client
 import os
+from dotenv import load_dotenv
+from datetime import datetime
 
-# Initialize Supabase client
-SUPABASE_URL = os.environ.get("SUPABASE_URL")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+# Load environment variables from .env file
+load_dotenv()
+
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# ---------------------- USERS ----------------------
-def insert_user(email, password):
+# -------------------------
+# USER FUNCTIONS
+# -------------------------
+
+def insert_user(email):
     try:
-        response = supabase.table("users").insert({"email": email, "password": password}).execute()
-        return True if response.data else False
+        existing_user = supabase.table("users").select("*").eq("email", email).execute()
+        if existing_user.data:
+            return existing_user.data[0]
+        response = supabase.table("users").insert({"email": email}).execute()
+        return response.data[0]
     except Exception as e:
         print("Error inserting user:", e)
-        return False
+        return None
 
 def get_user_by_email(email):
     try:
         response = supabase.table("users").select("*").eq("email", email).execute()
         return response.data[0] if response.data else None
     except Exception as e:
-        print("Error fetching user by email:", e)
+        print("Error getting user by email:", e)
         return None
 
-# ---------------------- TRANSACTIONS ----------------------
-def insert_transaction(user_id, date, description, category, amount):
-    try:
-        response = supabase.table("transactions").insert({
-            "user_id": user_id,
-            "date": date,
-            "description": description,
-            "category": category,
-            "amount": amount
-        }).execute()
-        return True if response.data else False
-    except Exception as e:
-        print("Error inserting transaction:", e)
-        return False
+# -------------------------
+# TRANSACTION FUNCTIONS
+# -------------------------
 
-def get_transactions_by_user(user_id):
+def insert_transactions(data):
+    try:
+        response = supabase.table("transactions").insert(data).execute()
+        return response
+    except Exception as e:
+        print("Error inserting transactions:", e)
+        return None
+
+def fetch_transactions_by_user(user_id):
     try:
         response = supabase.table("transactions") \
-            .select("date, description, category, amount") \
+            .select("*") \
             .eq("user_id", user_id) \
             .order("date", desc=True) \
             .execute()
@@ -50,20 +58,17 @@ def get_transactions_by_user(user_id):
         print("Error fetching transactions:", e)
         return []
 
-# ---------------------- BUDGET GOALS ----------------------
-def insert_budget_goals(user_id, income, needs_percent, wants_percent, savings_percent):
+# -------------------------
+# BUDGET GOAL FUNCTIONS
+# -------------------------
+
+def save_budget_goals(data):
     try:
-        response = supabase.table("budget_goals").insert({
-            "user_id": user_id,
-            "income": income,
-            "needs_percent": needs_percent,
-            "wants_percent": wants_percent,
-            "savings_percent": savings_percent
-        }).execute()
-        return True if response.data else False
+        response = supabase.table("budget_goals").insert(data).execute()
+        return response
     except Exception as e:
-        print("Error inserting budget goals:", e)
-        return False
+        print("Error saving budget goals:", e)
+        return None
 
 def fetch_budget_goals_by_user(user_id):
     try:
@@ -88,13 +93,16 @@ def get_budget_goals_by_user(user_id):
         print("Error fetching budget goals:", e)
         return []
 
-# ---------------------- CONNECTION TEST ----------------------
-def test_connection():
+# -------------------------
+# TEST CONNECTION
+# -------------------------
+
+def test_supabase_connection():
     try:
         response = supabase.table("users").select("*").limit(1).execute()
         if response.data is not None:
-            return "✅ Supabase connection successful!"
+            return "✅ Supabase connected successfully!"
         else:
-            return "⚠️ Supabase connected but no user data found."
+            return "⚠️ Supabase connected but no data found in 'users' table."
     except Exception as e:
-        return f"❌ Connection failed: {e}"
+        return f"❌ Supabase connection error: {str(e)}"
