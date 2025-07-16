@@ -1,58 +1,65 @@
-from supabase import create_client  # Supabase client for database and auth
-from datetime import datetime       # Used for generating registration timestamp
 import os
-from dotenv import load_dotenv      # Load environment variables securely from .env
-from passlib.hash import bcrypt     # For hashing passwords
+from supabase import create_client, Client
+from dotenv import load_dotenv
+from typing import Optional, List
+from datetime import datetime
 
-# Load the .env file to access SUPABASE_URL and SUPABASE_KEY
+# Load environment variables from .env if available
 load_dotenv()
 
-# Retrieve Supabase credentials from environment variables
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-# Create Supabase client
-client = create_client(SUPABASE_URL, SUPABASE_KEY)
+client: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# Insert a new user into the 'users' table with hashed password
-def insert_user(uid, name, email, password):
-    registration_date = datetime.utcnow().isoformat()
-    hashed_password = bcrypt.hash(password)
+# -------------------- USERS --------------------
+def insert_user(name: str, email: str, password: str, created_at: datetime) -> bool:
     try:
         response = client.table("users").insert({
-            "id": uid,
             "name": name,
             "email": email,
-            "password": hashed_password,
-            "registration_date": registration_date
+            "password": password,
+            "created_at": created_at.isoformat()
         }).execute()
-        return response
+        return True if response.status_code == 201 else False
     except Exception as e:
-        return {"error": str(e)}
+        print(f"Error inserting user: {e}")
+        return False
 
-# Authenticate a user using Supabase Auth
-def authenticate_user(email, password):
+def get_user_by_email(email: str) -> Optional[dict]:
     try:
-        response = client.auth.sign_in_with_password({
-            "email": email,
-            "password": password
-        })
-        return response
+        response = client.table("users").select("*").eq("email", email).execute()
+        if response.data and len(response.data) > 0:
+            return response.data[0]
+        return None
     except Exception as e:
-        return {"error": str(e)}
+        print(f"Error fetching user: {e}")
+        return None
 
-# Check if a user already exists by email
-def get_user_by_email(email):
+# -------------------- TRANSACTIONS --------------------
+def insert_transactions(transactions: List[dict]) -> bool:
     try:
-        response = client.table("users").select("*").eq("email", email).limit(1).execute()
-        return response.data[0] if response.data else None
+        response = client.table("transactions").insert(transactions).execute()
+        return True if response.status_code == 201 else False
     except Exception as e:
-        return {"error": str(e)}
+        print(f"Failed to insert transactions: {e}")
+        return False
 
-# Test Supabase connection
-def test_connection():
+def get_transactions_by_user(email: str) -> List[dict]:
+    try:
+        response = client.table("transactions").select("*").eq("email", email).order("date", desc=True).execute()
+        return response.data if response.data else []
+    except Exception as e:
+        print(f"Error fetching transactions: {e}")
+        return []
+
+# -------------------- TEST CONNECTION --------------------
+def test_connection() -> str:
     try:
         response = client.table("users").select("*").limit(1).execute()
-        return "✅ Supabase connected successfully!" if response.data else "⚠️ Connected but no data."
+        if response.data is not None:
+            return "✅ Supabase connected successfully!"
+        else:
+            return "⚠️ Supabase connected but no data found in 'users' table."
     except Exception as e:
-        return f"❌ Connection failed: {e}"
+        return f"❌ Supabase connection error: {str(e)}"
