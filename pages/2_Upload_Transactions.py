@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from database import insert_transactions, get_user_by_email
+from database import insert_transactions, get_user_id_by_email
 
 st.set_page_config(page_title="📤 Upload Transactions", page_icon="📤")
 st.title("📤 Upload Your Transactions")
@@ -35,11 +35,22 @@ if uploaded_file:
             st.error("CSV must contain columns: date, description, amount, category.")
         else:
             user_email = st.session_state.email
-            user_id = get_user_by_email(user_email)
+            user_id = get_user_id_by_email(user_email)
 
             if user_id:
                 df["user_id"] = user_id
-                response = insert_transactions(df.to_dict(orient="records"))
+
+                # Format date column
+                df["date"] = pd.to_datetime(df["date"]).dt.strftime("%Y-%m-%d")
+
+                # Ensure only valid columns are included
+                df = df[["user_id", "date", "description", "category", "amount"]].dropna()
+
+                # Convert DataFrame to JSON-compatible records
+                payload = df.to_dict(orient="records")
+
+                response = insert_transactions(payload)
+
                 if "error" in response:
                     st.error(f"❌ Failed to upload transactions: {response['error']}")
                 else:
