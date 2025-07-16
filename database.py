@@ -17,13 +17,12 @@ client = create_client(SUPABASE_URL, SUPABASE_KEY)
 # Insert a new user into the 'users' table with hashed password
 def insert_user(uid, name, email, password):
     registration_date = datetime.utcnow().isoformat()
-    hashed_password = bcrypt.hash(password)
     try:
         response = client.table("users").insert({
             "id": uid,
             "name": name,
             "email": email,
-            "password": hashed_password,
+            "password": password,  # already hashed
             "registration_date": registration_date
         }).execute()
         return response
