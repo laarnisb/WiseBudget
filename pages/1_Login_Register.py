@@ -10,7 +10,7 @@ if "email" not in st.session_state:
     st.session_state.email = None
 
 # -------------------- Page Title --------------------
-st.title("🔐 Login or Register")    
+st.title("🔐 Login or Register")
 
 # Tabs: Login first, then Register
 tab_login, tab_register = st.tabs(["Login", "Register"])
@@ -27,6 +27,8 @@ with tab_login:
         if user and bcrypt.checkpw(login_password.encode("utf-8"), user["password"].encode("utf-8")):
             st.session_state.email = user["email"]
             st.success(f"Welcome back, {user['name']}!")
+            st.experimental_rerun()  # Ensure session state is updated before redirect
+            st.switch_page("pages/3_View_Transactions.py")
         else:
             st.error("Invalid email or password.")
 
