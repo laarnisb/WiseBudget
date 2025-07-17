@@ -1,81 +1,82 @@
 import streamlit as st
 import pandas as pd
-from database import get_transactions_by_user
+import matplotlib.pyplot as plt
 from utils import get_user_id_by_email
+from database import get_transactions_by_user
 
-st.set_page_config(page_title="💡 Budget Insights", page_icon="💡")
-st.title("💡 Budget Insights")
+st.set_page_config(page_title="📊 Budget Insights", page_icon="📊")
+st.title("📊 Budget Insights")
 
-# Get user email from session state
-email = st.session_state.get("email")
+email = st.session_state.get("email", "")
 if not email:
     st.warning("⚠️ Please log in to view budget insights.")
     st.stop()
 
-# Get user ID
 user_id = get_user_id_by_email(email)
 if not user_id:
     st.error("User not found.")
     st.stop()
 
-# Fetch transactions
 transactions = get_transactions_by_user(user_id)
 if not transactions:
-    st.warning("No transactions found.")
+    st.info("No transactions found.")
     st.stop()
 
-# Create DataFrame and preprocess
 df = pd.DataFrame(transactions)
 df["date"] = pd.to_datetime(df["date"], errors="coerce")
-df.dropna(subset=["date"], inplace=True)
+df = df.dropna(subset=["date"])
 df["month"] = df["date"].dt.to_period("M").astype(str)
 
-# Month selection
-available_months = sorted(df["month"].unique(), reverse=True)
-if not available_months:
-    st.warning("No transaction data available.")
+# Filter out 'Income' and keep only spending categories
+df = df[df["category"] != "Income"]
+df = df[df["category"].isin(["Needs", "Wants", "Savings", "Other"])]
+
+if df.empty:
+    st.info("No relevant spending data found.")
     st.stop()
 
-selected_month = st.selectbox("Select a month:", available_months)
-df = df[df["month"] == selected_month]
+selected_month = st.selectbox("Select a Month", sorted(df["month"].unique(), reverse=True))
+monthly_df = df[df["month"] == selected_month]
 
-# Monthly summary
-monthly_summary = df.groupby("category")["amount"].sum().reset_index()
-monthly_summary["amount"] = monthly_summary["amount"].round(2)
+# Group and summarize
+summary = monthly_df.groupby("category")["amount"].sum().reset_index()
+summary["amount"] = summary["amount"].round(2)
 
-# Show table
-st.subheader(f"Spending Summary for {selected_month}")
-st.dataframe(monthly_summary, use_container_width=True)
+# Color-blind friendly palette (Set2)
+color_palette = {
+    "Needs": "#66c2a5",
+    "Wants": "#fc8d62",
+    "Savings": "#8da0cb",
+    "Other": "#e78ac3"
+}
+summary["color"] = summary["category"].map(color_palette)
 
-# Pie chart (exclude Income)
-pie_data = monthly_summary[monthly_summary["category"] != "Income"]
-if not pie_data.empty:
-    st.subheader("Spending Distribution (Pie Chart)")
-    st.plotly_chart(
-        {
-            "data": [
-                {
-                    "type": "pie",
-                    "labels": pie_data["category"],
-                    "values": pie_data["amount"],
-                    "hole": 0.3,
-                }
-            ],
-            "layout": {"margin": {"t": 0, "b": 0}},
-        },
-        use_container_width=True,
-    )
-else:
-    st.info("No spending data available for this month.")
+# Table
+st.subheader(f"Spending Summary - {selected_month}")
+st.dataframe(summary[["category", "amount"]].rename(columns={"amount": "Amount ($)"}), use_container_width=True)
 
-# Bar chart (exclude Income)
-bar_data = pie_data.copy()
-if not bar_data.empty:
-    st.subheader("Spending by Category (Bar Chart)")
-    st.bar_chart(bar_data.set_index("category"))
+# Bar Chart
+st.subheader("Spending by Category")
+fig_bar, ax_bar = plt.subplots()
+ax_bar.bar(summary["category"], summary["amount"], color=summary["color"])
+ax_bar.set_ylabel("Amount ($)")
+ax_bar.set_xlabel("Category")
+ax_bar.set_title(f"Spending in {selected_month}")
+st.pyplot(fig_bar)
 
-# Budget Insight Message
-top_category = pie_data.sort_values(by="amount", ascending=False).iloc[0]
-st.success(
-    f"💡 You spent the most on **{top_category['category']}** in {selected_month}, totaling ${top_category['amount']:.2f}."
+# Pie Chart
+st.subheader("Spending Distribution")
+fig_pie, ax_pie = plt.subplots()
+ax_pie.pie(
+    summary["amount"],
+    labels=summary["category"],
+    autopct="%1.2f%%",
+    startangle=90,
+    colors=summary["color"]
 )
+ax_pie.axis("equal")
+st.pyplot(fig_pie)
+
+# Insight
+top_cat = summary.loc[summary["amount"].idxmax(), "category"]
+st.info(f"Your highest spending in **{selected_month}** was on **{top_cat}**.")
