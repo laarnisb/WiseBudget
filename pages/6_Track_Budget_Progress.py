@@ -1,114 +1,98 @@
 import streamlit as st
 import pandas as pd
-from utils import get_user_id_by_email
-from database import fetch_transactions_by_user, fetch_budget_goals_by_user
 import matplotlib.pyplot as plt
+from database import get_user_by_email, get_transactions_by_user, fetch_budget_goals_by_user
+from utils import get_user_id_by_email
 
 st.set_page_config(page_title="📊 Track Budget Progress", page_icon="📊")
 st.title("📊 Track Budget Progress")
 
-user_email = st.session_state.get("email")
-if not user_email:
-    st.warning("⚠️ Please log in first to view your budget progress.")
+# Get email from session state
+if "email" not in st.session_state:
+    st.warning("⚠️ Please log in to view your budget progress.")
     st.stop()
 
-# Get user ID
-user_id = get_user_id_by_email(user_email)
-if not user_id:
-    st.error("User not found.")
-    st.stop()
+email = st.session_state["email"]
+user_id = get_user_id_by_email(email)
 
 # Fetch transactions
-transactions = fetch_transactions_by_user(user_id)
+transactions = get_transactions_by_user(user_id)
 if not transactions:
     st.warning("No transactions found.")
     st.stop()
 
-# Convert to DataFrame
 df = pd.DataFrame(transactions)
-df["date"] = pd.to_datetime(df["date"])
-df["month"] = df["date"].dt.to_period("M")
+df['date'] = pd.to_datetime(df['date'])
+df['month'] = df['date'].dt.to_period("M").astype(str)
 
-# Let user select a month
-months = df["month"].unique().tolist()
-selected_month = st.selectbox("Select a month", sorted(months, reverse=True))
+# Select month
+available_months = sorted(df['month'].unique())
+selected_month = st.selectbox("Select a month", available_months)
 
-# Filter for selected month
-monthly_df = df[df["month"] == selected_month]
+# Filter transactions
+monthly_df = df[df['month'] == selected_month]
 
-# Exclude 'Income' category from tracking
-monthly_df = monthly_df[monthly_df["category"] != "Income"]
-
-# Group and summarize actual spending
-category_totals = monthly_df.groupby("category")["amount"].sum().to_dict()
-
-# Fetch budget goals
+# Load goals
 budget_goals = fetch_budget_goals_by_user(user_id)
-
 if not budget_goals:
-    st.warning("No budget goals found. Please set your 50/30/20 goals first.")
+    st.warning("No budget goals set yet. Please set goals first.")
     st.stop()
 
-try:
-    needs_percent = float(budget_goals["needs_percent"])
-    wants_percent = float(budget_goals["wants_percent"])
-    savings_percent = float(budget_goals["savings_percent"])
-    income = float(budget_goals["income"])
-except (KeyError, TypeError, ValueError) as e:
-    st.error(f"Invalid budget goal data: {e}")
-    st.stop()
+goals_df = pd.DataFrame(budget_goals)
 
-# Compute budget targets
-budget_targets = {
-    "Needs": income * needs_percent / 100,
-    "Wants": income * wants_percent / 100,
-    "Savings": income * savings_percent / 100
-}
+# Calculate income for the month
+monthly_income = monthly_df[monthly_df['category'] == 'Income']['amount'].sum()
 
-# Prepare summary
-summary_data = []
-for category, budget in budget_targets.items():
-    actual = category_totals.get(category, 0.0)
-    difference = actual - budget
-    summary_data.append({
-        "Category": category,
-        "Budgeted": budget,
-        "Actual": actual,
-        "Difference": difference
-    })
+# Calculate target budgets
+goals_df['budgeted'] = goals_df['budget_amount'] / 100 * monthly_income
 
-summary_df = pd.DataFrame(summary_data)
+# Calculate actual spending
+actuals = monthly_df.groupby('category')['amount'].sum().reset_index()
+actuals.columns = ['category', 'actual']
 
+# Merge goals with actuals
+summary_df = goals_df.merge(actuals, left_on='category', right_on='category', how='left')
+summary_df['actual'] = summary_df['actual'].fillna(0)
+
+# Calculate difference: target - actual
+summary_df['difference'] = summary_df['budgeted'] - summary_df['actual']
+summary_df['budgeted'] = summary_df['budgeted'].round(2)
+summary_df['actual'] = summary_df['actual'].round(2)
+summary_df['difference'] = summary_df['difference'].round(2)
+
+# Display summary
 st.subheader(f"Summary for {selected_month}")
-st.dataframe(summary_df.style.format({
-    "Budgeted": "${:,.2f}",
-    "Actual": "${:,.2f}",
-    "Difference": "${:,.2f}"
-}))
+st.dataframe(summary_df[['category', 'budgeted', 'actual', 'difference']].rename(columns={
+    'category': 'Category',
+    'budgeted': 'Budgeted',
+    'actual': 'Actual',
+    'difference': 'Difference'
+}), use_container_width=True)
 
-st.caption("Use the sidebar to navigate through the app.")
+# Bar chart
+st.subheader("Budgeted vs Actual Spending")
+fig, ax = plt.subplots()
 
-# Prepare bar chart data
-categories = summary_df['Category']
-budgeted = summary_df['Budgeted']
-actual = summary_df['Actual']
-differences = summary_df['Difference']
+categories = summary_df['category']
+budgeted = summary_df['budgeted']
+actual = summary_df['actual']
+difference = summary_df['difference']
 
+bar_width = 0.35
 x = range(len(categories))
 
-fig, ax = plt.subplots(figsize=(8, 5))
-bar1 = ax.bar(x, budgeted, width=0.4, label='Budgeted', align='center')
-bar2 = ax.bar([p + 0.4 for p in x], actual, width=0.4, label='Actual', align='center')
+ax.bar(x, budgeted, width=bar_width, label='Budgeted')
+ax.bar([i + bar_width for i in x], actual, width=bar_width, label='Actual')
 
-# Annotate differences above bars
-for i, diff in enumerate(differences):
-    color = 'red' if diff < 0 else 'green'
-    ax.text(i + 0.2, max(budgeted[i], actual[i]) + 10, f"${diff:,.2f}", ha='center', va='bottom', color=color)
+# Annotate bars with difference
+for i, (b, a, d) in enumerate(zip(budgeted, actual, difference)):
+    color = 'green' if d >= 0 else 'red'
+    ax.text(i + bar_width, max(b, a) + 10, f"${d:.2f}", ha='center', color=color, fontsize=10)
 
-ax.set_xticks([p + 0.2 for p in x])
+ax.set_xticks([i + bar_width / 2 for i in x])
 ax.set_xticklabels(categories)
-ax.set_ylabel('Amount ($)')
-ax.set_title('Budgeted vs Actual Spending')
+ax.set_ylabel("Amount ($)")
+ax.set_title("Budgeted vs Actual Spending")
 ax.legend()
 
 st.pyplot(fig)
