@@ -3,7 +3,7 @@ import pandas as pd
 from database import get_transactions_by_email
 from utils import extract_month, get_user_id_by_email
 
-st.set_page_config(page_title="💡 Budget Recommendations", page_icon="💡")
+st.set_page_config(page_title="Budget Recommendations", page_icon="💡")
 st.title("💡 Budget Recommendations")
 
 if "email" not in st.session_state:
