@@ -1,84 +1,70 @@
 import streamlit as st
 import pandas as pd
-from database import get_user_by_email, get_transactions_by_user
+from database import get_user_by_email, get_transactions_by_user, fetch_budget_goals_by_user
 from utils import get_user_id_by_email
 
-st.set_page_config(page_title="💡 Budget Recommendations", page_icon="💡")
-st.title("💡 Budget Recommendations")
+st.set_page_config(page_title="Budget Recommendations", page_icon="💡")
+st.title("💡 Personalized Budget Recommendations")
 
-if "email" not in st.session_state or not st.session_state["email"]:
-    st.warning("⚠️ Please log in to view recommendations.")
+if "email" not in st.session_state:
+    st.warning("⚠️ Please log in to view your recommendations.")
     st.stop()
 
-email = st.session_state["email"]
-user = get_user_by_email(email)
-if not user:
-    st.warning("User not found.")
-    st.stop()
-
+email = st.session_state.email
 user_id = get_user_id_by_email(email)
+
+# Fetch user's transactions and budget goals
 transactions = get_transactions_by_user(user_id)
+budget_goals = fetch_budget_goals_by_user(user_id)
 
 if not transactions:
-    st.info("No transactions found.")
+    st.warning("No transactions found. Please upload your spending data first.")
     st.stop()
 
+if not budget_goals:
+    st.warning("No budget goals found. Please set your goals first.")
+    st.stop()
+
+# Convert to DataFrame
 df = pd.DataFrame(transactions)
-df["date"] = pd.to_datetime(df["date"])
-df["month"] = df["date"].dt.to_period("M").astype(str)
+goals_df = pd.DataFrame(budget_goals)
 
-latest_month = df["month"].max()
-latest_df = df[df["month"] == latest_month]
+# Filter only expenses
+expenses_df = df[df['category'] != 'Income']
+total_spent = expenses_df['amount'].sum()
 
-summary = latest_df.groupby("category")["amount"].sum().reset_index()
-total_spent = summary["amount"].sum()
+# Calculate actual spending percentages by category
+actual_percent = expenses_df.groupby("category")["amount"].sum() / total_spent * 100
+actual_percent = actual_percent.reset_index().rename(columns={"amount": "actual"})
 
-# Budget allocation rules
-needs_budget = 0.50 * total_spent
-wants_budget = 0.30 * total_spent
-savings_budget = 0.20 * total_spent
+# Merge with goals
+goals_df = goals_df.rename(columns={"budget_amount": "target", "category": "category"})
+merged = pd.merge(goals_df, actual_percent, on="category", how="left").fillna(0)
+merged["difference"] = merged["target"] - merged["actual"]
 
-# Mapping categories
-category_map = {
-    "Rent": "Needs",
-    "Utilities": "Needs",
-    "Groceries": "Needs",
-    "Transportation": "Needs",
-    "Healthcare": "Needs",
-    "Dining": "Wants",
-    "Entertainment": "Wants",
-    "Shopping": "Wants",
-    "Travel": "Wants",
-    "Savings": "Savings",
-    "Investments": "Savings",
-    "Other": "Wants",
-}
+# Reorder columns: Target → Actual → Difference
+summary_df = merged[["category", "target", "actual", "difference"]]
+summary_df = summary_df.sort_values(by="category").reset_index(drop=True)
 
-summary["Group"] = summary["category"].map(category_map).fillna("Wants")
-grouped = summary.groupby("Group")["amount"].sum().reset_index()
+# Format as percentage for display
+def format_percent(x):
+    return f"{x:.2f}%"
 
-# Display
-st.subheader(f"Spending Recommendations for {latest_month}")
-st.write("Based on the 50/30/20 rule:")
+styled_df = summary_df.copy()
+styled_df[["target", "actual", "difference"]] = styled_df[["target", "actual", "difference"]].applymap(format_percent)
 
-rec_table = pd.DataFrame({
-    "Group": ["Needs", "Wants", "Savings"],
-    "Budgeted": [needs_budget, wants_budget, savings_budget],
-    "Actual": [
-        grouped[grouped["Group"] == "Needs"]["amount"].sum(),
-        grouped[grouped["Group"] == "Wants"]["amount"].sum(),
-        grouped[grouped["Group"] == "Savings"]["amount"].sum(),
-    ]
-})
-rec_table["Difference"] = rec_table["Actual"] - rec_table["Budgeted"]
+st.subheader("📊 Budget Allocation Summary")
+st.dataframe(styled_df, hide_index=True)
 
-st.dataframe(rec_table.style.format(precision=2), use_container_width=True)
+# Generate Recommendations
+st.subheader("📝 Recommendations")
+for _, row in summary_df.iterrows():
+    category = row["category"]
+    diff = row["difference"]
 
-# Insight message
-for _, row in rec_table.iterrows():
-    diff = row["Difference"]
-    label = row["Group"]
-    if diff > 0:
-        st.warning(f"⚠️ You overspent on **{label}** by ${diff:.2f}.")
-    elif diff < 0:
-        st.success(f"✅ You are under your **{label}** budget by ${-diff:.2f}.")
+    if diff < -5:
+        st.error(f"⚠️ {category}: You're spending more than your target by {abs(diff):.2f}%. Consider reducing your expenses.")
+    elif diff > 5:
+        st.success(f"✅ {category}: You're under your target by {diff:.2f}%. Great job!")
+    else:
+        st.info(f"ℹ️ {category}: You're close to your target. Keep monitoring your spending.")
