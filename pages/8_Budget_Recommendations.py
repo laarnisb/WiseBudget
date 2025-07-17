@@ -1,82 +1,76 @@
 import streamlit as st
 import pandas as pd
-from database import get_transactions_by_user, fetch_budget_goals_by_user
+import seaborn as sns
+import matplotlib.pyplot as plt
+from database import get_user_by_email, get_transactions_by_user, fetch_budget_goals_by_user
 from utils import get_user_id_by_email
 
-st.set_page_config(page_title="💡 Budget Recommendations", page_icon="💡")
-st.title("💡 Budget Recommendations")
+st.set_page_config(page_title="🧠 Budget Recommendations", page_icon="🧠")
+st.title("🧠 Budget Recommendations")
 
-# Get user email
-email = st.session_state.get("email")
-
-if not email:
+if "email" not in st.session_state:
     st.warning("⚠️ Please log in to view this page.")
     st.stop()
 
-# Get user_id
+email = st.session_state["email"]
 user_id = get_user_id_by_email(email)
-if not user_id:
-    st.error("❌ User not found.")
-    st.stop()
 
-# Fetch data
-transactions = get_transactions_by_user(user_id)
-budget_goals = fetch_budget_goals_by_user(user_id)
+try:
+    transactions = get_transactions_by_user(user_id)
+    budget_goals = fetch_budget_goals_by_user(user_id)
 
-if not transactions or not budget_goals:
-    st.warning("Missing transactions or budget goals.")
-    st.stop()
+    if not transactions or not budget_goals:
+        st.warning("Please make sure both transactions and budget goals are available.")
+        st.stop()
 
-# Convert to DataFrame
-df = pd.DataFrame(transactions)
-df["date"] = pd.to_datetime(df["date"])
-df["month"] = df["date"].dt.to_period("M")
+    df = pd.DataFrame(transactions)
+    df["amount"] = pd.to_numeric(df["amount"], errors="coerce").fillna(0)
 
-# Most recent month
-latest_month = df["month"].max()
-df = df[df["month"] == latest_month]
+    grouped = df.groupby("category")["amount"].sum().reset_index()
+    grouped.columns = ["Category", "Actual ($)"]
 
-# Actual totals
-actual_summary = df.groupby("category")["amount"].sum().reset_index()
+    goal_data = {
+        "Needs": budget_goals["income"] * (budget_goals["needs_percent"] / 100),
+        "Wants": budget_goals["income"] * (budget_goals["wants_percent"] / 100),
+        "Savings": budget_goals["income"] * (budget_goals["savings_percent"] / 100)
+    }
 
-# Calculate actual percentages
-total_spent = actual_summary["amount"].sum()
-actual_summary["actual_percent"] = (actual_summary["amount"] / total_spent * 100).round(2)
+    target_df = pd.DataFrame({
+        "Category": ["Needs", "Wants", "Savings"],
+        "Target ($)": [goal_data["Needs"], goal_data["Wants"], goal_data["Savings"]]
+    })
 
-# Budget goals
-income = budget_goals.get("income", 0)
-goals_df = pd.DataFrame({
-    "category": ["Needs", "Wants", "Savings"],
-    "target_percent": [
-        budget_goals.get("needs_percent", 0),
-        budget_goals.get("wants_percent", 0),
-        budget_goals.get("savings_percent", 0),
-    ]
-})
+    merged = pd.merge(target_df, grouped, on="Category", how="left").fillna(0)
+    merged["Difference ($)"] = merged["Target ($)"] - merged["Actual ($)"]
 
-# Merge summaries
-merged = pd.merge(goals_df, actual_summary, how="left", on="category").fillna(0)
-merged["difference"] = (merged["target_percent"] - merged["actual_percent"]).round(2)
+    st.subheader("Target vs Actual Spending")
+    st.dataframe(merged.style.format("{:.2f}"), use_container_width=True)
 
-# Display summary table
-st.subheader(f"Spending Performance for {latest_month}")
-st.dataframe(merged[["category", "target_percent", "actual_percent", "difference"]].style.format({
-    "target_percent": "{:.2f}%",
-    "actual_percent": "{:.2f}%",
-    "difference": "{:.2f}%"
-}))
+    # Recommendations
+    st.subheader("💡 Recommendations")
+    for _, row in merged.iterrows():
+        category = row["Category"]
+        diff = row["Difference ($)"]
+        if diff < 0:
+            st.markdown(f"🔴 You overspent on **{category}** by **${abs(diff):.2f}**. Consider reducing expenses.")
+        elif diff > 0:
+            st.markdown(f"🟢 You underspent on **{category}** by **${diff:.2f}**. Great job!")
+        else:
+            st.markdown(f"🟡 Your spending on **{category}** matched the target.")
 
-# Generate recommendations
-st.subheader("Recommendations")
-for _, row in merged.iterrows():
-    category = row["category"]
-    diff = row["difference"]
+    # Optional bar chart
+    fig, ax = plt.subplots()
+    merged.plot(
+        x="Category", 
+        y=["Target ($)", "Actual ($)"], 
+        kind="bar", 
+        ax=ax, 
+        color=sns.color_palette("Set2")
+    )
+    ax.set_title("Spending Comparison")
+    ax.set_ylabel("Amount ($)")
+    ax.legend(title="Type")
+    st.pyplot(fig)
 
-    if diff < -5:
-        st.error(f"⚠️ You overspent on **{category}** by {abs(diff):.2f}%. Try cutting back next month.")
-    elif diff > 5:
-        st.success(f"✅ Great job! You spent {abs(diff):.2f}% less than your target for **{category}**.")
-    else:
-        st.info(f"📊 Your **{category}** spending is on track (within ±5%).")
-
-st.info("Use the sidebar to navigate through the app.")
+except Exception as e:
+    st.error(f"❌ Failed to generate recommendations: {e}")
