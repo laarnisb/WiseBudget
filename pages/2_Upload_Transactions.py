@@ -5,8 +5,13 @@ from database import get_user_by_email, insert_transaction
 st.set_page_config(page_title="Upload Transactions", page_icon="📤")
 st.title("📤 Upload Your Transactions")
 
-st.markdown("Upload a CSV file with the following columns:")
-st.code("date, description, category, amount")
+st.markdown("""
+Upload a CSV file with the following columns:
+
+`date`, `description`, `category`, `amount`
+
+**Accepted categories:** `Needs`, `Wants`, `Savings`
+""")
 
 # Ensure session has email
 if "email" not in st.session_state:
