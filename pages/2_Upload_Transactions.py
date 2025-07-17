@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from database import get_user_by_email, insert_transaction
 
-st.set_page_config(page_title="📤 Upload Transactions", page_icon="📤")
+st.set_page_config(page_title="Upload Transactions", page_icon="📤")
 st.title("📤 Upload Your Transactions")
 
 st.markdown("Upload a CSV file with the following columns:")

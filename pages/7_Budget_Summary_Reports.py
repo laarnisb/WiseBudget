@@ -4,8 +4,8 @@ import matplotlib.pyplot as plt
 from database import get_user_by_email, get_transactions_by_user
 from utils import get_user_id_by_email
 
-st.set_page_config(page_title="📊 Budget Summary Reports", page_icon="📊")
-st.title("📊 Budget Summary Reports")
+st.set_page_config(page_title="📋 Budget Summary Reports", page_icon="📋")
+st.title("📋 Budget Summary Reports")
 
 # Use the email from session state
 if "email" not in st.session_state or not st.session_state["email"]:
