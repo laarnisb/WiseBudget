@@ -42,10 +42,10 @@ actual_percent = (
 ).reset_index()
 actual_percent.columns = ["Category", "Actual (%)"]
 
-# Define targets
+# Define targets (exclude "Other")
 target_percent = pd.DataFrame({
-    "Category": ["Needs", "Wants", "Savings", "Other"],
-    "Target (%)": [50, 30, 20, 0]
+    "Category": ["Needs", "Wants", "Savings"],
+    "Target (%)": [50, 30, 20]
 })
 
 # Merge target and actual
@@ -63,9 +63,6 @@ st.subheader("📌 Recommendations")
 for _, row in summary.iterrows():
     category = row["Category"]
     diff = row["Difference (%)"]
-
-    if category == "Other":
-        continue  # Skip recommendations for "Other"
 
     if diff > 5:
         st.info(f"💡 Consider increasing your **{category}** spending by {diff:.1f}% to meet your target.")

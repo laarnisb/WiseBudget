@@ -52,7 +52,7 @@ color_palette = {
 summary["color"] = summary["category"].map(color_palette)
 
 # Table
-st.subheader(f"Spending Summary - {selected_month}")
+st.subheader(f"Spending Summary for {selected_month}")
 st.dataframe(summary[["category", "amount"]].rename(columns={"amount": "Amount ($)"}), use_container_width=True)
 
 # Bar Chart
