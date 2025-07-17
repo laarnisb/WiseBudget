@@ -15,7 +15,7 @@ WiseBudget is your personal finance dashboard designed to help you:
 """)
 
 st.markdown("""
-To get started, click on **Login/Register** in the sidebar.  
+⬅️ To get started, click on **Login/Register** in the sidebar.  
 Once logged in, you'll unlock all the excellent features of WiseBudget, personalized just for you!
 """)
 
