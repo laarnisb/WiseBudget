@@ -1,3 +1,4 @@
+
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -27,8 +28,9 @@ df["date"] = pd.to_datetime(df["date"], errors="coerce")
 df = df.dropna(subset=["date"])
 df["month"] = df["date"].dt.to_period("M").astype(str)
 
-# Filter to only Needs, Wants, Savings
-df = df[df["category"].isin(["Needs", "Wants", "Savings"])]
+# Filter out 'Income' and keep only spending categories
+df = df[df["category"] != "Income"]
+df = df[df["category"].isin(["Needs", "Wants", "Savings", "Other"])]
 
 if df.empty:
     st.info("No relevant spending data found.")
@@ -45,14 +47,41 @@ summary["amount"] = summary["amount"].round(2)
 color_palette = {
     "Needs": "#66c2a5",
     "Wants": "#fc8d62",
-    "Savings": "#8da0cb"
+    "Savings": "#8da0cb",
+    "Other": "#e78ac3"
 }
 summary["color"] = summary["category"].map(color_palette)
 
-# Reorder categories
-ordered_categories = ["Needs", "Wants", "Savings"]
+# Reorder categories: Needs, Wants, Savings, Other
+ordered_categories = [cat for cat in ["Needs", "Wants", "Savings", "Other"] if cat in summary["category"].values]
 summary = summary.set_index("category").loc[ordered_categories].reset_index()
 
 # Table
 st.subheader(f"Spending Summary for {selected_month}")
-st.dataframe(summary[["category", "amount"]].rename(columns={"amount": "Amount ($)"}).reset_i_
+st.dataframe(summary[["category", "amount"]].rename(columns={"amount": "Amount ($)"}).reset_index(drop=True), use_container_width=True)
+
+# Bar Chart
+st.subheader("Spending by Category")
+fig_bar, ax_bar = plt.subplots()
+ax_bar.bar(summary["category"], summary["amount"], color=summary["color"])
+ax_bar.set_ylabel("Amount ($)")
+ax_bar.set_xlabel("Category")
+ax_bar.set_title(f"Spending in {selected_month}")
+st.pyplot(fig_bar)
+
+# Pie Chart
+st.subheader("Spending Distribution")
+fig_pie, ax_pie = plt.subplots()
+ax_pie.pie(
+    summary["amount"],
+    labels=summary["category"],
+    autopct="%1.2f%%",
+    startangle=90,
+    colors=summary["color"]
+)
+ax_pie.axis("equal")
+st.pyplot(fig_pie)
+
+# Insight
+top_cat = summary.loc[summary["amount"].idxmax(), "category"]
+st.info(f"Your highest spending in **{selected_month}** was on **{top_cat}**.")
