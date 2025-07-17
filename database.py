@@ -115,17 +115,3 @@ def fetch_budget_goals_by_user(user_id):
     except Exception as e:
         print("Error fetching budget goals:", e)
         return None
-
-# -------------------------
-# TEST CONNECTION
-# -------------------------
-
-def test_supabase_connection():
-    try:
-        response = supabase.table("users").select("*").limit(1).execute()
-        if response.data is not None:
-            return "✅ Supabase connected successfully!"
-        else:
-            return "⚠️ Supabase connected but no data found in 'users' table."
-    except Exception as e:
-        return f"❌ Supabase connection error: {str(e)}"
