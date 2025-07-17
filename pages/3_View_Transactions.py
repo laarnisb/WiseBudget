@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from database import get_user_by_email, fetch_transactions_by_user
+from database import get_user_by_email, get_transactions_by_user
 
 st.set_page_config(page_title="Your Transactions", page_icon="📄")
 st.title("📄 Your Transactions")
@@ -15,7 +15,7 @@ user = get_user_by_email(email)
 
 if user:
     user_id = user["id"]
-    transactions = fetch_transactions_by_user(user_id)
+    transactions = get_transactions_by_user(user_id)
     
     if transactions:
         df = pd.DataFrame(transactions)
