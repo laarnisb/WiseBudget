@@ -14,16 +14,21 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 # USER FUNCTIONS
 # -------------------------
 
-def insert_user(email):
+def insert_user(id, name, email, password):
     try:
         existing_user = supabase.table("users").select("*").eq("email", email).execute()
         if existing_user.data:
-            return existing_user.data[0]
-        response = supabase.table("users").insert({"email": email}).execute()
-        return response.data[0]
+            return False  # Email already exists
+        response = supabase.table("users").insert({
+            "id": id,
+            "name": name,
+            "email": email,
+            "password": password
+        }).execute()
+        return response.status_code == 201
     except Exception as e:
         print("Error inserting user:", e)
-        return None
+        return False
 
 def get_user_by_email(email):
     try:
@@ -51,14 +56,6 @@ def insert_transaction(user_id, date, description, category, amount):
         print("Error inserting transaction:", e)
         return False
 
-def fetch_transactions_by_user(user_id):
-    try:
-        response = supabase.table("transactions").select("*").eq("user_id", user_id).order("date", desc=True).execute()
-        return response.data if response.data else []
-    except Exception as e:
-        print("Error fetching transactions:", e)
-        return []
-
 def get_transactions_by_user(user_id):
     try:
         response = supabase.table("transactions") \
@@ -68,7 +65,7 @@ def get_transactions_by_user(user_id):
             .execute()
         return response.data if response.data else []
     except Exception as e:
-        print("Error fetching transactions by user:", e)
+        print("Error fetching transactions:", e)
         return []
 
 # -------------------------
