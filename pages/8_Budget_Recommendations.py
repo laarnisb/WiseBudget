@@ -22,7 +22,7 @@ if not budget_goals:
     st.warning("No budget goals found. Please set your 50/30/20 budget first.")
     st.stop()
 
-goals_df = pd.DataFrame(budget_goals)
+goals_df = pd.DataFrame([budget_goals])
 goals_df.rename(columns={"category": "Category", "budget_amount": "Target"}, inplace=True)
 
 # Get user transactions

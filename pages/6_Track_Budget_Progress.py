@@ -38,7 +38,7 @@ if not budget_goals:
     st.warning("No budget goals set yet. Please set goals first.")
     st.stop()
 
-goals_df = pd.DataFrame(budget_goals)
+goals_df = pd.DataFrame([budget_goals])
 
 # Calculate income for the month
 monthly_income = monthly_df[monthly_df['category'] == 'Income']['amount'].sum()
