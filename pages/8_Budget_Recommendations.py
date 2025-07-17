@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from database import get_transactions_by_email
+from database import get_transactions_by_user
 from utils import extract_month, get_user_id_by_email
 
 st.set_page_config(page_title="Budget Recommendations", page_icon="💡")
@@ -13,7 +13,7 @@ if "email" not in st.session_state:
 email = st.session_state["email"]
 user_id = get_user_id_by_email(email)
 
-transactions = get_transactions_by_email(email)
+transactions = get_transactions_by_user(user_id)
 if not transactions:
     st.info("No transactions found. Please upload your data.")
     st.stop()
@@ -54,7 +54,7 @@ summary["Actual (%)"] = summary["Actual (%)"].fillna(0).round(2)
 summary["Difference (%)"] = (summary["Target (%)"] - summary["Actual (%)"]).round(2)
 
 # Display summary table
-st.subheader(f"Spending Summary - {latest_month}")
+st.subheader(f"📅 Spending Summary for {latest_month}")
 st.dataframe(summary, use_container_width=True)
 
 # Generate recommendations
