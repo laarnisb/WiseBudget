@@ -1,73 +1,64 @@
 import streamlit as st
 import pandas as pd
-from utils import get_user_id_by_email
-from database import fetch_budget_goals_by_user, get_transactions_by_user
+from database import fetch_transactions_by_email, fetch_budget_goals
 
 st.set_page_config(page_title="Budget Recommendations", page_icon="💡")
 st.title("💡 Personalized Budget Recommendations")
 
-# Get logged-in user's email
-if "email" not in st.session_state:
-    st.warning("⚠️ Please log in to access budget recommendations.")
+email = st.session_state.get("email")
+if not email:
+    st.error("⚠️ Please log in to view this page.")
     st.stop()
 
-email = st.session_state["email"]
-user_id = get_user_id_by_email(email)
+# Fetch data
+transactions = fetch_transactions_by_email(email)
+budget_goals = fetch_budget_goals(email)
 
-# Get budget goals
-budget_goals = fetch_budget_goals_by_user(user_id)
-
-# 🛑 Early exit if no goals
-if not budget_goals:
-    st.warning("No budget goals found. Please set your 50/30/20 budget first.")
-    st.stop()
-
-goals_df = pd.DataFrame([budget_goals])
-goals_df.rename(columns={"category": "Category", "budget_amount": "Target"}, inplace=True)
-
-# Get user transactions
-transactions = get_transactions_by_user(user_id)
-if not transactions:
+if transactions.empty:
     st.warning("No transactions found.")
     st.stop()
 
-df = pd.DataFrame(transactions)
-df["date"] = pd.to_datetime(df["date"])
-df["month"] = df["date"].dt.to_period("M")
+# Preprocess
+transactions["date"] = pd.to_datetime(transactions["date"])
+transactions["month"] = transactions["date"].dt.to_period("M").astype(str)
+latest_month = transactions["month"].max()
+monthly_data = transactions[transactions["month"] == latest_month]
 
-latest_month = df["month"].max()
-df_month = df[df["month"] == latest_month]
+monthly_income = monthly_data[monthly_data["category"] == "Income"]["amount"].sum()
+monthly_data = monthly_data[monthly_data["category"] != "Income"]
+category_actuals = monthly_data.groupby("category")["amount"].sum().abs().reset_index()
+category_actuals.rename(columns={"amount": "Actual", "category": "Category"}, inplace=True)
 
-# Summarize spending
-category_actuals = df_month.groupby("category")["amount"].sum().reset_index()
-category_actuals.rename(columns={"category": "Category", "amount": "Actual"}, inplace=True)
+# Process goals
+goals_df = pd.DataFrame(budget_goals if isinstance(budget_goals, list) else [])
+if not goals_df.empty:
+    goals_df.rename(columns={"category": "Category"}, inplace=True)
+    if "budget_amount" in goals_df.columns:
+        goals_df["Target (%)"] = goals_df["budget_amount"]
+    else:
+        goals_df["Target (%)"] = 0
+else:
+    goals_df = pd.DataFrame(columns=["Category", "Target (%)"])
 
-# Merge with goals
-summary = pd.merge(goals_df, category_actuals, on="Category", how="left").fillna(0)
+# Compute actual %
+category_actuals["Actual (%)"] = (category_actuals["Actual"] / monthly_income * 100).round(2)
+goals_df["Target (%)"] = goals_df["Target (%)"].round(2)
 
-# Normalize to percentages
-total_spent = summary["Actual"].sum()
-summary["Actual %"] = (summary["Actual"] / total_spent) * 100
-summary["Target %"] = summary["Target"]
-summary["Difference %"] = summary["Target %"] - summary["Actual %"]
-
-# Format
-summary["Target %"] = summary["Target %"].map("{:.2f}%".format)
-summary["Actual %"] = summary["Actual %"].map("{:.2f}%".format)
-summary["Difference %"] = summary["Difference %"].map("{:+.2f}%".format)
+# Merge
+summary = pd.merge(goals_df[["Category", "Target (%)"]], category_actuals[["Category", "Actual (%)"]], on="Category", how="left").fillna(0)
+summary["Difference (%)"] = (summary["Target (%)"] - summary["Actual (%)"]).round(2)
 
 # Display
 st.subheader("📊 Budget Allocation Summary")
-st.dataframe(summary[["Category", "Target %", "Actual %", "Difference %"]], use_container_width=True)
+st.dataframe(summary.style.format({"Target (%)": "{:.2f}%", "Actual (%)": "{:.2f}%", "Difference (%)": "{:.2f}%"}), use_container_width=True)
 
 # Recommendations
-st.subheader("📋 Recommendations")
+st.subheader("📝 Recommendations")
 for _, row in summary.iterrows():
-    category = row["Category"]
-    diff_val = float(row["Difference %"].replace("%", ""))
-    if diff_val < -5:
-        st.error(f"You're overspending on **{category}** by {-diff_val:.2f}%. Consider cutting back.")
-    elif diff_val > 5:
-        st.success(f"Excellent! You're underspending on **{category}** by {diff_val:.2f}%.")
+    diff = row["Difference (%)"]
+    if diff < -5:
+        st.error(f"❗ You are overspending on {row['Category']} by {abs(diff):.2f}% compared to your target.")
+    elif diff > 5:
+        st.success(f"✅ Excellent! You're spending less than your target on {row['Category']} by {diff:.2f}%.")
     else:
-        st.info(f"You're on track with **{category}** spending.")
+        st.info(f"ℹ️ Spending on {row['Category']} is on track.")

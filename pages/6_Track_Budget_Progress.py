@@ -1,98 +1,79 @@
 import streamlit as st
 import pandas as pd
+from database import fetch_transactions_by_email, fetch_budget_goals
 import matplotlib.pyplot as plt
-from database import get_user_by_email, get_transactions_by_user, fetch_budget_goals_by_user
-from utils import get_user_id_by_email
 
-st.set_page_config(page_title="📊 Track Budget Progress", page_icon="📊")
+st.set_page_config(page_title="Track Budget Progress", page_icon="📊")
 st.title("📊 Track Budget Progress")
 
-# Get email from session state
-if "email" not in st.session_state:
-    st.warning("⚠️ Please log in to view your budget progress.")
+# Get current user
+email = st.session_state.get("email")
+if not email:
+    st.error("⚠️ Please log in to view this page.")
     st.stop()
 
-email = st.session_state["email"]
-user_id = get_user_id_by_email(email)
+# Select month
+selected_month = st.selectbox("Select a month", options=sorted(set(pd.date_range(start="2025-01-01", periods=12, freq="M").strftime("%Y-%m"))))
 
-# Fetch transactions
-transactions = get_transactions_by_user(user_id)
-if not transactions:
+# Fetch data
+transactions = fetch_transactions_by_email(email)
+budget_goals = fetch_budget_goals(email)
+
+if transactions.empty:
     st.warning("No transactions found.")
     st.stop()
 
-df = pd.DataFrame(transactions)
-df['date'] = pd.to_datetime(df['date'])
-df['month'] = df['date'].dt.to_period("M").astype(str)
+# Process data
+transactions["date"] = pd.to_datetime(transactions["date"])
+transactions["month"] = transactions["date"].dt.to_period("M").astype(str)
 
-# Select month
-available_months = sorted(df['month'].unique())
-selected_month = st.selectbox("Select a month", available_months)
+monthly_data = transactions[transactions["month"] == selected_month]
+monthly_summary = monthly_data.groupby("category")["amount"].sum().reset_index()
+monthly_income = monthly_summary.loc[monthly_summary["category"] == "Income", "amount"].sum()
 
-# Filter transactions
-monthly_df = df[df['month'] == selected_month]
+# Convert to positive values for comparison
+monthly_summary["amount"] = monthly_summary["amount"].abs()
+monthly_summary = monthly_summary.rename(columns={"amount": "Actual", "category": "Category"})
 
-# Load goals
-budget_goals = fetch_budget_goals_by_user(user_id)
-if not budget_goals:
-    st.warning("No budget goals set yet. Please set goals first.")
-    st.stop()
+# Budget Goals Processing
+goals_df = pd.DataFrame(budget_goals if isinstance(budget_goals, list) else [])
+if not goals_df.empty:
+    goals_df.rename(columns={"category": "Category"}, inplace=True)
+    if "budget_amount" in goals_df.columns:
+        goals_df["Budgeted"] = goals_df["budget_amount"] / 100 * monthly_income
+    else:
+        goals_df["Budgeted"] = 0
+else:
+    goals_df = pd.DataFrame(columns=["Category", "Budgeted"])
 
-goals_df = pd.DataFrame([budget_goals])
+# Merge
+summary = pd.merge(goals_df[["Category", "Budgeted"]], monthly_summary, on="Category", how="outer").fillna(0)
+summary["Difference"] = summary["Budgeted"] - summary["Actual"]
+summary["Difference"] = summary["Difference"].round(2)
+summary["Budgeted"] = summary["Budgeted"].round(2)
+summary["Actual"] = summary["Actual"].round(2)
 
-# Calculate income for the month
-monthly_income = monthly_df[monthly_df['category'] == 'Income']['amount'].sum()
-
-# Calculate target budgets
-goals_df['budgeted'] = goals_df['budget_amount'] / 100 * monthly_income
-
-# Calculate actual spending
-actuals = monthly_df.groupby('category')['amount'].sum().reset_index()
-actuals.columns = ['category', 'actual']
-
-# Merge goals with actuals
-summary_df = goals_df.merge(actuals, left_on='category', right_on='category', how='left')
-summary_df['actual'] = summary_df['actual'].fillna(0)
-
-# Calculate difference: target - actual
-summary_df['difference'] = summary_df['budgeted'] - summary_df['actual']
-summary_df['budgeted'] = summary_df['budgeted'].round(2)
-summary_df['actual'] = summary_df['actual'].round(2)
-summary_df['difference'] = summary_df['difference'].round(2)
-
-# Display summary
 st.subheader(f"Summary for {selected_month}")
-st.dataframe(summary_df[['category', 'budgeted', 'actual', 'difference']].rename(columns={
-    'category': 'Category',
-    'budgeted': 'Budgeted',
-    'actual': 'Actual',
-    'difference': 'Difference'
-}), use_container_width=True)
+st.dataframe(summary.style.format({"Budgeted": "${:,.2f}", "Actual": "${:,.2f}", "Difference": "${:,.2f}"}), use_container_width=True)
 
-# Bar chart
-st.subheader("Budgeted vs Actual Spending")
+# Bar chart with difference annotations
 fig, ax = plt.subplots()
-
-categories = summary_df['category']
-budgeted = summary_df['budgeted']
-actual = summary_df['actual']
-difference = summary_df['difference']
-
-bar_width = 0.35
+categories = summary["Category"]
 x = range(len(categories))
+ax.bar(x, summary["Budgeted"], width=0.4, label="Budgeted", align='center')
+ax.bar([i + 0.4 for i in x], summary["Actual"], width=0.4, label="Actual", align='center')
 
-ax.bar(x, budgeted, width=bar_width, label='Budgeted')
-ax.bar([i + bar_width for i in x], actual, width=bar_width, label='Actual')
+# Add text labels
+for i, diff in enumerate(summary["Difference"]):
+    color = "green" if diff > 0 else "red"
+    ax.text(i, max(summary["Budgeted"][i], summary["Actual"][i]) + 10, f"${diff:.2f}", ha="center", color=color)
 
-# Annotate bars with difference
-for i, (b, a, d) in enumerate(zip(budgeted, actual, difference)):
-    color = 'green' if d >= 0 else 'red'
-    ax.text(i + bar_width, max(b, a) + 10, f"${d:.2f}", ha='center', color=color, fontsize=10)
-
-ax.set_xticks([i + bar_width / 2 for i in x])
+ax.set_xticks([i + 0.2 for i in x])
 ax.set_xticklabels(categories)
 ax.set_ylabel("Amount ($)")
 ax.set_title("Budgeted vs Actual Spending")
 ax.legend()
 
 st.pyplot(fig)
+
+st.markdown("Use the sidebar to navigate through the app.")
