@@ -5,7 +5,7 @@ st.title("🚪 Logout")
 
 if "email" in st.session_state:
     user_email = st.session_state["email"]
-    st.success(f"You have been logged out, **{user_email}**.")
+    st.success(f"👋 {user_email}, you have been logged out.")
     st.session_state.clear()
 else:
     st.info("You are not currently logged in.")
