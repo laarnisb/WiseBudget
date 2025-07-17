@@ -47,7 +47,10 @@ latest_month = summary["month"].max()
 latest_summary = summary[summary["month"] == latest_month].sort_values(by="percent", ascending=False)
 
 st.subheader(f"Spending Summary for {latest_month}")
-st.dataframe(latest_summary[["category", "amount", "percent"]].round(2), use_container_width=True)
+st.dataframe(
+    latest_summary[["category", "amount", "percent"]].round(2).reset_index(drop=True),
+    use_container_width=True
+)
 
 # Prepare data for stacked bar chart
 exclude_categories = ["Income"]

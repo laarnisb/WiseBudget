@@ -33,6 +33,9 @@ try:
     latest_month = df["month"].max()
     df = df[df["month"] == latest_month]
 
+    # Filter only Needs, Wants, Savings
+    df = df[df["category"].isin(["Needs", "Wants", "Savings"])]
+
     grouped = df.groupby("category")["amount"].sum().reset_index()
 
     budget_data = {
@@ -56,15 +59,20 @@ try:
     # Show which month we're reporting
     st.subheader(f"Budget Progress for {latest_month}")
 
-    st.dataframe(summary.style.format({"Budgeted": "{:.2f}", "Actual": "{:.2f}", "Difference": "{:.2f}"}), use_container_width=True)
+    st.dataframe(
+        summary[["Category", "Budgeted", "Actual", "Difference"]]
+        .round(2)
+        .reset_index(drop=True),
+        use_container_width=True
+    )
 
     # Bar chart using Set2 palette
     fig, ax = plt.subplots()
     summary.plot(
-        x="Category", 
-        y=["Budgeted", "Actual"], 
-        kind="bar", 
-        ax=ax, 
+        x="Category",
+        y=["Budgeted", "Actual"],
+        kind="bar",
+        ax=ax,
         color=sns.color_palette("Set2")
     )
     ax.set_ylabel("Amount ($)")
