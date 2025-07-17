@@ -23,3 +23,10 @@ def require_login():
 def get_user_id_by_email(email):
     user = get_user_by_email(email)
     return user["id"] if user else None
+
+def extract_month(date_str):
+    try:
+        return pd.to_datetime(date_str).strftime('%B %Y')
+    except Exception as e:
+        print("Error extracting month:", e)
+        return "Unknown"
