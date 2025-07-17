@@ -19,15 +19,22 @@ def insert_user(id, name, email, password):
         existing_user = supabase.table("users").select("*").eq("email", email).execute()
         if existing_user.data:
             return False  # Email already exists
+
         response = supabase.table("users").insert({
             "id": id,
             "name": name,
             "email": email,
             "password": password
         }).execute()
-        return response.status_code == 201
+
+        if response.data:
+            print("✅ User successfully inserted.")
+            return True
+        else:
+            print("⚠️ Insert attempted but no data returned.")
+            return False
     except Exception as e:
-        print("Error inserting user:", e)
+        print("❌ Error inserting user:", e)
         return False
 
 def get_user_by_email(email):
