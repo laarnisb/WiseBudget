@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -58,7 +57,8 @@ summary = summary.set_index("category").loc[ordered_categories].reset_index()
 
 # Table
 st.subheader(f"Spending Summary for {selected_month}")
-st.dataframe(summary[["category", "amount"]].rename(columns={"amount": "Amount ($)"}).reset_index(drop=True), use_container_width=True)
+summary_table = summary[["category", "amount"]].rename(columns={"amount": "Amount ($)"}).reset_index(drop=True)
+st.dataframe(summary_table, use_container_width=True)
 
 # Bar Chart
 st.subheader("Spending by Category")
@@ -85,3 +85,12 @@ st.pyplot(fig_pie)
 # Insight
 top_cat = summary.loc[summary["amount"].idxmax(), "category"]
 st.info(f"Your highest spending in **{selected_month}** was on **{top_cat}**.")
+
+# CSV Download
+csv = summary_table.to_csv(index=False).encode("utf-8")
+st.download_button(
+    label="📥 Download Summary as CSV",
+    data=csv,
+    file_name=f"budget_summary_{selected_month}.csv",
+    mime="text/csv"
+)
